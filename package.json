@@ -1,0 +1,17 @@
+{
+  "name": "xdj-gateway",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "鲜当家统一网关服务",
+  "scripts": {
+    "gateway": "node gateway.js"
+  },
+  "dependencies": {
+    "@aparajita/capacitor-biometric-auth": "^10.0.0",
+    "express": "^4.21.2",
+    "http-proxy-middleware": "^3.0.5"
+  },
+  "devDependencies": {
+    "prisma": "^6.3.0"
+  }
+}

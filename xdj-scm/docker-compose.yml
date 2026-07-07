@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  # MySQL 数据库
+  db:
+    image: mysql:8.0
+    container_name: xdj-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: xdj_scm_db
+      MYSQL_CHARSET: utf8mb4
+      MYSQL_COLLATION: utf8mb4_unicode_ci
+    ports:
+      - "3307:3306"
+    volumes:
+      - xdj_mysql_data:/var/lib/mysql
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: xdj-redis
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    volumes:
+      - xdj_redis_data:/data
+
+  # 后端服务
+  server:
+    build: ./server
+    container_name: xdj-server
+    restart: unless-stopped
+    depends_on:
+      - db
+      - redis
+    environment:
+      NODE_ENV: production
+      PORT: 4003
+      DATABASE_URL: mysql://root:root@db:3306/xdj_scm_db
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: xdj-scm-jwt-secret-2026
+    ports:
+      - "4003:4003"
+    volumes:
+      - ./server/src:/app/src
+      - ./server/prisma:/app/prisma
+      - xdj_uploads:/app/uploads
+
+  # PC管理端
+  client:
+    build: ./client
+    container_name: xdj-client
+    restart: unless-stopped
+    depends_on:
+      - server
+    ports:
+      - "5175:80"
+
+  # H5移动端
+  mobile:
+    build: ./mobile
+    container_name: xdj-mobile
+    restart: unless-stopped
+    depends_on:
+      - server
+    ports:
+      - "5176:80"
+
+volumes:
+  xdj_mysql_data:
+  xdj_redis_data:
+  xdj_uploads:

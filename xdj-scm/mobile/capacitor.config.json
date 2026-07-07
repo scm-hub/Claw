@@ -1,0 +1,16 @@
+{
+  "appId": "com.xdj.scm",
+  "appName": "鲜当家SCM",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "http"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1500,
+      "backgroundColor": "#1976d2",
+      "showSpinner": false
+    }
+  }
+}

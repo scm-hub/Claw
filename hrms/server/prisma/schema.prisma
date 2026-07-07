@@ -1,0 +1,554 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         String    @id @default(cuid())
+  email      String    @unique
+  password   String
+  role       String    @default("EMPLOYEE")
+  employeeId String?   @unique
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  employee   Employee? @relation(fields: [employeeId], references: [id])
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  code        String   @unique
+  description String   @default("")
+  level       Int      @default(1)
+  permissions String   @default("[]")
+  isSystem    Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Department {
+  id        String       @id @default(cuid())
+  name      String
+  parentId  String?
+  managerId String?
+  createdAt DateTime     @default(now())
+  sortOrder Int          @default(0)
+  manager   Employee?    @relation("DeptManager", fields: [managerId], references: [id])
+  parent    Department?  @relation("DeptTree", fields: [parentId], references: [id])
+  children  Department[] @relation("DeptTree")
+  employees Employee[]   @relation("DeptEmployees")
+  positions Position[]   @relation("DeptPositions")
+  onboardingCandidates EmployeeOnboarding[] @relation("OnboardingCandidateDept")
+
+  @@index([managerId], map: "Department_managerId_fkey")
+  @@index([parentId], map: "Department_parentId_fkey")
+}
+
+model Position {
+  id           String      @id @default(cuid())
+  name         String
+  code         String      @unique
+  departmentId String?
+  level        String      @default("")
+  minSalary    Float       @default(0)
+  maxSalary    Float       @default(0)
+  description  String      @default("")
+  isActive     Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  employees    Employee[]
+  department   Department? @relation("DeptPositions", fields: [departmentId], references: [id])
+
+  @@index([departmentId], map: "Position_departmentId_fkey")
+}
+
+model Employee {
+  id               String               @id @default(cuid())
+  globalId         String               @unique @default(cuid())  // 跨系统统一标识，SSO 匹配用
+  employeeNo       String               @unique
+  name             String
+  gender           String               @default("MALE")
+  phone            String               @default("")
+  email            String               @default("")
+  status           String               @default("ACTIVE")
+  hireDate         DateTime
+  leaveDate        DateTime?
+  departmentId     String
+  baseSalary       Float                @default(0)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  birthday         DateTime?
+  currentAddress   String               @default("")
+  education        String               @default("")
+  emergencyContact String               @default("")
+  emergencyPhone   String               @default("")
+  ethnicity        String               @default("")
+  idCard           String               @default("")
+  major            String               @default("")
+  maritalStatus    String               @default("")
+  permanentAddress String               @default("")
+  politicalStatus  String               @default("")
+  school           String               @default("")
+  handoverNote     String               @default("")
+  positionId       String?
+  positionTitle    String               @default("")
+  // ── 扩展字段 ──
+  photo            String               @default("")        // 个人照片路径
+  hasPrivateCar    Boolean              @default(false)     // 是否有私家车
+  carPlate         String               @default("")        // 车牌号
+  jobLevel         String               @default("")        // 岗位级别
+  rank             String               @default("")        // 职级
+  isAccommodated   Boolean              @default(false)     // 是否住宿
+  accommodationStartDate DateTime?                           // 住宿开始日期
+  criminalRecordUrl String              @default("")        // 无犯罪记录证明附件路径
+  tempContractUrl  String               @default("")        // 临时合同信息附件路径
+  hasGroupInsurance Boolean             @default(false)     // 是否缴纳团险
+  hasSignedContract Boolean             @default(false)     // 是否签订合同
+  attendances      Attendance[]
+  clockRecords     ClockRecord[]
+  contracts        Contract[]
+  managedDepts     Department[]         @relation("DeptManager")
+  department       Department           @relation("DeptEmployees", fields: [departmentId], references: [id])
+  position         Position?            @relation(fields: [positionId], references: [id])
+  approvedLeaves   Leave[]              @relation("LeaveApprover")
+  leaves           Leave[]
+  performances     Performance[]
+  salaries         SalaryRecord[]
+  payrollRecords   PayrollRecord[]
+  trainings        TrainingEnrollment[]
+  user             User?
+  onboarding       EmployeeOnboarding?
+  mentoredOnboardings EmployeeOnboarding[] @relation("OnboardingMentor")
+  // ── 扩展子表 ──
+  educations        EmployeeEducation[]
+  workExperiences   EmployeeWorkExperience[]
+  familyMembers     EmployeeFamilyMember[]
+  emergencyContacts EmployeeEmergencyContact[]
+  languages         EmployeeLanguage[]
+  certs             EmployeeCert[]
+  positionRecords   InternalPositionRecord[]
+
+  @@index([departmentId], map: "Employee_departmentId_fkey")
+  @@index([positionId], map: "Employee_positionId_fkey")
+}
+
+model Attendance {
+  id           String        @id @default(cuid())
+  employeeId   String
+  date         DateTime
+  clockIn      DateTime?
+  clockOut     DateTime?
+  status       String        @default("NORMAL")
+  createdAt    DateTime      @default(now())
+  punchCount   Int           @default(0)
+  employee     Employee      @relation(fields: [employeeId], references: [id])
+  clockRecords ClockRecord[]
+
+  @@unique([employeeId, date])
+}
+
+model ClockRecord {
+  id           String     @id @default(cuid())
+  employeeId   String
+  attendanceId String
+  clockTime    DateTime
+  createdAt    DateTime   @default(now())
+  attendance   Attendance @relation(fields: [attendanceId], references: [id])
+  employee     Employee   @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId, clockTime])
+  @@index([attendanceId], map: "ClockRecord_attendanceId_fkey")
+}
+
+model Leave {
+  id           String    @id @default(cuid())
+  employeeId   String
+  type         String
+  startDate    DateTime
+  endDate      DateTime
+  duration     Float     @default(1)
+  durationUnit String    @default("DAY")
+  startTime    String?
+  reason       String
+  status       String    @default("PENDING")
+  approverId   String?
+  comment      String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  approver     Employee? @relation("LeaveApprover", fields: [approverId], references: [id])
+  employee     Employee  @relation(fields: [employeeId], references: [id])
+
+  @@index([approverId], map: "Leave_approverId_fkey")
+  @@index([employeeId], map: "Leave_employeeId_fkey")
+}
+
+model SalaryRecord {
+  id         String   @id @default(cuid())
+  employeeId String
+  month      String
+  baseSalary Float
+  allowance  Float    @default(0)
+  overtime   Float    @default(0)
+  bonus      Float    @default(0)
+  socialIns  Float    @default(0)
+  tax        Float    @default(0)
+  deduction  Float    @default(0)
+  netSalary  Float
+  createdAt  DateTime @default(now())
+  employee   Employee @relation(fields: [employeeId], references: [id])
+
+  @@unique([employeeId, month])
+}
+
+/// 工资管理记录 — 按 Excel 工资表模板字段结构
+model PayrollRecord {
+  id                String   @id @default(cuid())
+  employeeId        String?
+  month             String
+  // ── 基本信息（快照） ──
+  company           String   @default("")
+  department        String   @default("")
+  team              String   @default("")
+  position          String   @default("")
+  positionLevel     String   @default("")
+  positionCategory  String   @default("")
+  employeeNo        String
+  idCard            String   @default("")
+  payMethod         String   @default("")
+  status            String   @default("")
+  name              String
+  attendanceDays    Float    @default(0)
+  // ── 薪资项（+） ──
+  baseWage          Float    @default(0)   // 基本/计件工资
+  performanceBonus  Float    @default(0)   // 绩效工资
+  overtimePay       Float    @default(0)   // 加班费
+  commission        Float    @default(0)   // 提成
+  fullAttendanceBonus Float  @default(0)   // 全勤奖
+  seniorityAllowance Float   @default(0)   // 工龄补贴
+  partyMemberSubsidy Float   @default(0)   // 党员补贴
+  certificateSubsidy Float   @default(0)   // 证书补贴
+  positionAllowance Float    @default(0)   // 岗位津贴
+  educationSubsidy  Float    @default(0)   // 学历补贴
+  technicianSubsidy Float    @default(0)   // 技术员补贴
+  filialSubsidy     Float    @default(0)   // 孝心补贴
+  highTempSubsidy   Float    @default(0)   // 高温补贴
+  paidAnnualLeave   Float    @default(0)   // 带薪年休假
+  otherSubsidy      Float    @default(0)   // 其他补贴
+  welfareFee        Float    @default(0)   // 福利费
+  rewardItem        Float    @default(0)   // 奖励项
+  penaltyItem       Float    @default(0)   // 处罚项
+  // ── 应付工资 ──
+  grossPay          Float    @default(0)
+  // ── 扣款项（-） ──
+  individualTax     Float    @default(0)   // 个税
+  socialInsurance   Float    @default(0)   // 社保
+  housingFund       Float    @default(0)   // 公积金
+  partyFee          Float    @default(0)   // 党费
+  otherDeduction    Float    @default(0)   // 其他扣款
+  totalDeduction    Float    @default(0)   // 扣款小计
+  // ── 实付 ──
+  netPay            Float    @default(0)   // 实付工资
+  bankName          String   @default("")  // 工资卡银行
+  bankAccount       String   @default("")  // 银行卡号
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  employee          Employee? @relation(fields: [employeeId], references: [id])
+
+  @@unique([employeeNo, month])
+  @@index([month])
+  @@index([department])
+  @@index([company])
+}
+
+model Job {
+  id          String      @id @default(cuid())
+  title       String
+  department  String
+  location    String      @default("")
+  type        String      @default("FULL_TIME")
+  salary      String      @default("")
+  description String      @default("")
+  requirements String     @default("")
+  headcount   Int         @default(1)
+  urgency     String      @default("NORMAL")
+  status      String      @default("OPEN")
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  candidates  Candidate[]
+}
+
+model Candidate {
+  id            String   @id @default(cuid())
+  jobId         String
+  name          String
+  email         String   @default("")
+  phone         String   @default("")
+  resume        String?
+  resumeFile    String?
+  stage         String   @default("APPLIED")
+  notes         String   @default("")
+  interviewDate DateTime?
+  interviewer   String   @default("")
+  rating        Int      @default(0)
+  source        String   @default("")
+  rejectReason  String   @default("")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  job           Job      @relation(fields: [jobId], references: [id])
+
+  @@index([jobId], map: "Candidate_jobId_fkey")
+}
+
+model Performance {
+  id          String   @id @default(cuid())
+  employeeId  String
+  period      String
+  kpiScore    Float    @default(0)
+  selfRating  Float?
+  selfSummary String?
+  mgrRating   Float?
+  mgrComments String?
+  finalRating Float?
+  comments    String?
+  createdAt   DateTime @default(now())
+  status      String   @default("DRAFT")
+  updatedAt   DateTime @updatedAt
+  employee    Employee @relation(fields: [employeeId], references: [id])
+
+  @@unique([employeeId, period])
+}
+
+model Contract {
+  id             String                @id @default(cuid())
+  contractNo     String?               @unique
+  employeeId     String
+  type           String
+  startDate      DateTime
+  endDate        DateTime
+  createdAt      DateTime              @default(now())
+  status         String                @default("ACTIVE")
+  terms                 String?
+  socialInsuranceAccount String?
+  hasHousingFund        Boolean               @default(false)
+  housingFundAccount    String?
+  updatedAt      DateTime              @updatedAt
+  employee       Employee              @relation(fields: [employeeId], references: [id])
+  attachments    ContractAttachment[]
+
+  // 续签关联
+  renewedFromId String?             @unique
+  renewedFrom   Contract?           @relation("ContractRenewal", fields: [renewedFromId], references: [id])
+  renewedTo     Contract?           @relation("ContractRenewal")
+
+  @@index([employeeId], map: "Contract_employeeId_fkey")
+}
+
+model ContractAttachment {
+  id           String   @id @default(cuid())
+  contractId   String
+  fileName     String
+  originalName String
+  filePath     String
+  fileSize     Int      @default(0)
+  mimeType     String   @default("application/pdf")
+  uploadedAt   DateTime @default(now())
+  contract     Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId], map: "ContractAttachment_contractId_fkey")
+}
+
+model Training {
+  id          String               @id @default(cuid())
+  title       String
+  description String?
+  instructor  String?
+  startDate   DateTime
+  endDate     DateTime
+  location    String?
+  status      String               @default("PLANNED")
+  capacity    Int                  @default(30)
+  signinCode  String?              @unique
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  enrollments TrainingEnrollment[]
+}
+
+model TrainingEnrollment {
+  id           String    @id @default(cuid())
+  trainingId   String
+  employeeId   String
+  status       String    @default("ENROLLED")
+  signinTime   DateTime?
+  signinMethod String?
+  score        Float?
+  comment      String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  employee     Employee  @relation(fields: [employeeId], references: [id])
+  training     Training  @relation(fields: [trainingId], references: [id])
+
+  @@unique([trainingId, employeeId])
+  @@index([employeeId], map: "TrainingEnrollment_employeeId_fkey")
+}
+
+model EmployeeOnboarding {
+  id               String   @id @default(cuid())
+  employeeId       String?  @unique                          // 完成入职后才创建员工并关联
+  hireDate         DateTime
+  status           String   @default("PENDING")       // PENDING / MATERIAL_REVIEW / DEPT_CONFIRM / ADMIN_PROCESS / COMPLETED / REJECTED
+  currentStep      Int      @default(1)                // 当前步骤 1-4
+  materials        Json                    // 入职材料清单
+  approvalRecords  Json                    // 审批记录
+  notes            String   @db.Text
+  rejectReason     String   @default("")               // 驳回理由
+  mentorId         String?
+  completedAt      DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // 候选人信息（发Offer时带入，入职完成后用于创建员工）
+  candidateName        String   @default("")
+  candidatePhone       String   @default("")
+  candidateEmail       String   @default("")
+  candidateDeptId      String?
+  candidatePositionTitle String @default("")
+
+  employee        Employee?  @relation(fields: [employeeId], references: [id])
+  mentor          Employee? @relation("OnboardingMentor", fields: [mentorId], references: [id])
+  candidateDept   Department? @relation("OnboardingCandidateDept", fields: [candidateDeptId], references: [id])
+
+  @@index([employeeId])
+  @@index([status])
+}
+
+// ─────────────────────────────────────────────
+// 员工扩展子表
+// ─────────────────────────────────────────────
+
+/// 教育经历
+model EmployeeEducation {
+  id              String   @id @default(cuid())
+  employeeId      String
+  schoolName      String   @default("")
+  major           String   @default("")
+  graduationDate  DateTime?
+  degreeCertNo    String   @default("")    // 学位证书编号
+  diplomaCertNo   String   @default("")    // 学历证书编号
+  attachment      String   @default("")    // 附件路径
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  employee        Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+}
+
+/// 工作经历
+model EmployeeWorkExperience {
+  id              String    @id @default(cuid())
+  employeeId      String
+  companyName     String    @default("")
+  industry        String    @default("")
+  position        String    @default("")
+  startDate       DateTime?
+  endDate         DateTime?
+  leaveReason     String    @default("")
+  leaveCertUrl    String    @default("")    // 离职证明附件
+  lastSalary      Float     @default(0)
+  attachment      String    @default("")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  employee        Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+}
+
+/// 家庭成员信息
+model EmployeeFamilyMember {
+  id           String   @id @default(cuid())
+  employeeId   String
+  name         String   @default("")
+  idCard       String   @default("")
+  age          Int      @default(0)
+  relationship String   @default("")
+  phone        String   @default("")
+  workUnit     String   @default("")
+  workPosition String   @default("")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+}
+
+/// 紧急联系人信息
+model EmployeeEmergencyContact {
+  id           String   @id @default(cuid())
+  employeeId   String
+  name         String   @default("")
+  relationship String   @default("")
+  phone        String   @default("")
+  address      String   @default("")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+}
+
+/// 语言能力
+model EmployeeLanguage {
+  id               String   @id @default(cuid())
+  employeeId       String
+  language         String   @default("")    // 语种
+  listeningSpeaking String  @default("")    // 听说能力
+  readingWriting   String   @default("")    // 读写能力
+  attachment       String   @default("")    // 附件
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  employee         Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+}
+
+/// 职业资格/技能/证书
+model EmployeeCert {
+  id               String    @id @default(cuid())
+  employeeId       String
+  certName         String    @default("")
+  certLevel        String    @default("")
+  certNo           String    @default("")
+  issuingAuthority String    @default("")
+  obtainDate       DateTime?
+  attachment       String    @default("")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  employee         Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+}
+
+/// 内部任职记录
+model InternalPositionRecord {
+  id           String    @id @default(cuid())
+  employeeId   String
+  positionTitle String   @default("")
+  departmentName String  @default("")
+  startDate    DateTime?
+  endDate      DateTime?
+  changeType   String    @default("")    // 变动类型：入职/调岗/晋升/降职/离职
+  remark       String    @default("")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  employee     Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+}

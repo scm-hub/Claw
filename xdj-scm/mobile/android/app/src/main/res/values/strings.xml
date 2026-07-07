@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">鲜当家SCM</string>
+    <string name="title_activity_main">鲜当家SCM</string>
+    <string name="package_name">com.xdj.scm</string>
+    <string name="custom_url_scheme">com.xdj.scm</string>
+</resources>

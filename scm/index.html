@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCM 供应链管理系统</title>
+<link rel="stylesheet" href="style.css?v=5">
+</head>
+<body>
+<!-- 登录页 -->
+<div class="login-overlay hidden" id="loginOverlay">
+  <div class="login-card">
+    <h2 class="login-title">SCM 供应链管理系统</h2>
+    <p class="login-subtitle">请登录您的账号</p>
+    <input class="login-input" id="loginUser" type="text" placeholder="用户名" autofocus>
+    <input class="login-input" id="loginPass" type="password" placeholder="密码">
+    <p class="login-err" id="loginErr"></p>
+    <button class="login-btn" id="loginBtn" onclick="doLogin()">登 录</button>
+  </div>
+</div>
+<!-- 侧边栏 -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <h1>SCM 系统</h1>
+    <span class="sidebar-subtitle">供应链管理平台 v2.0</span>
+  </div>
+  <nav class="sidebar-nav" id="sidebarNav"></nav>
+</aside>
+
+<!-- 主内容区 -->
+<main class="main-content" id="mainContent"></main>
+
+<!-- 弹窗 -->
+<div class="modal-overlay" id="modalOverlay"></div>
+<div class="modal" id="modal"></div>
+
+<!-- 移动端菜单按钮 -->
+<button class="mobile-menu-btn" id="mobileMenuBtn" onclick="toggleMobileSidebar()">☰</button>
+
+<!-- 移动端遮罩 -->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleMobileSidebar()"></div>
+
+<!-- Toast -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+function toggleMobileSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebarOverlay');
+  sidebar.classList.toggle('open');
+  overlay.classList.toggle('show');
+}
+// <!-- 注意：BroadcastChannel 同步逻辑与 mobile.html 重复，修改时需同步更新 -->
+  BroadcastChannel 跨标签页同步初始化
+(function(){
+  try {
+    var bc = new BroadcastChannel('scm_sync');
+    bc.onmessage = function(e) {
+      if (e.data && e.data.type === 'data_changed' && e.data.source === 'mobile') {
+        if (typeof scmData !== 'undefined' && typeof loadData === 'function') {
+          scmData = loadData();
+          if (typeof currentModule !== 'undefined' && currentModule && typeof switchModule === 'function') {
+            switchModule(currentModule, currentSubModule);
+          }
+        }
+      }
+    };
+  } catch(e) {}
+})();
+</script>
+
+<script src="app.js?v=34"></script>
+<script src="app-modules.js?v=24"></script>
+</body>
+</html>

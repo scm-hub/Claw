@@ -1,0 +1,158 @@
+// 杭州鲜当家统一审批流引擎 — Prisma Schema
+// 独立数据库 workflow_db，存储流程模板、实例、任务、通知、回调配置
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// 流程模板 — 定义各业务类型的审批节点和条件
+// ============================================================
+model FlowTemplate {
+  id            String   @id @default(cuid())
+  name          String                // 模板名称（如"采购订单审批"）
+  businessType  String   @unique      // 业务类型（purchase_order / sales_order / entry / exit / contract ...）
+  system        String                // 所属系统（scm / hrms / portal）
+  module        String   @default("") // 所属模块（purchase / sales / warehouse / finance / employee ...）
+  description   String   @default("") // 说明
+  isActive      Boolean  @default(true) // 是否启用
+  nodes         String   @db.Text     // 流程节点列表（JSON 数组）
+  conditions    String?  @db.Text     // 触发条件（JSON 数组，可选）
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  instances     FlowInstance[]
+
+  @@index([system])
+  @@index([module])
+  @@index([businessType])
+  @@map("flow_template")
+}
+
+// ============================================================
+// 流程实例 — 每次审批发起创建一个实例
+// ============================================================
+model FlowInstance {
+  id            String   @id @default(cuid())
+  templateId    String                // 使用的模板
+  businessType  String                // 业务类型
+  system        String                // 来源系统
+  objectId      String                // 业务单据ID
+  objectNo      String   @default("") // 业务单据编号
+  objectTitle   String   @default("") // 标题（通知显示）
+  objectData    String?  @db.Text     // 单据快照（JSON）
+  submitterId   String                // 提交人 globalId
+  submitterName String   @default("") // 提交人姓名
+  submitterEmail String  @default("") // 提交人邮箱
+  status        String   @default("pending") // pending / approved / rejected / cancelled / withdrawn
+  currentNodeId String?               // 当前所在节点编号
+  startAt       DateTime @default(now())
+  finishedAt    DateTime?
+  reason        String?  @db.Text     // 最终意见
+
+  template      FlowTemplate @relation(fields: [templateId], references: [id])
+  tasks         FlowTask[]
+  notifications FlowNotification[]
+  callbacks     FlowCallback[]
+
+  @@index([status])
+  @@index([businessType])
+  @@index([objectId])
+  @@index([submitterId])
+  @@index([startAt])
+  @@map("flow_instance")
+}
+
+// ============================================================
+// 审批任务 — 每个节点每个审批人一条
+// ============================================================
+model FlowTask {
+  id            String   @id @default(cuid())
+  instanceId    String                // 所属流程实例
+  nodeId        String                // 所属节点编号
+  nodeName      String   @default("") // 节点名称
+  approverId    String                // 审批人 globalId
+  approverName  String   @default("") // 审批人姓名
+  approverEmail String   @default("") // 审批人邮箱
+  status        String   @default("pending") // pending / approved / rejected / delegated / forwarded
+  action        String?               // pass / reject / delegate / comment
+  comment       String?  @db.Text     // 审批意见
+  attachments   String?  @db.Text     // 附件 JSON
+  delegatedTo   String?               // 转审目标人 globalId
+  delegatedName String?  @default("") // 转审目标人姓名
+  dueAt         DateTime?             // 截止时间
+  actionAt      DateTime?             // 操作时间
+  createdAt     DateTime @default(now())
+
+  instance      FlowInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([approverId])
+  @@index([instanceId])
+  @@map("flow_task")
+}
+
+// ============================================================
+// 流程通知 — 站内消息
+// ============================================================
+model FlowNotification {
+  id            String   @id @default(cuid())
+  instanceId    String                // 关联流程实例
+  taskId        String?               // 关联任务（可选）
+  recipientId   String                // 接收人 globalId
+  recipientEmail String @default("")  // 接收人邮箱
+  type          String                // task_assigned / approved / rejected / reminder / completed / withdrawn
+  title         String   @default("") // 通知标题
+  content       String?  @db.Text     // 通知内容
+  isRead        Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  instance      FlowInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+
+  @@index([recipientId])
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("flow_notification")
+}
+
+// ============================================================
+// 回调记录 — 流程状态变更时通知子系统
+// ============================================================
+model FlowCallback {
+  id            String   @id @default(cuid())
+  instanceId    String                // 关联流程实例
+  event         String                // node_approved / flow_approved / flow_rejected / flow_cancelled / flow_withdrawn
+  callbackUrl   String                // 回调URL
+  requestBody   String?  @db.Text     // 发送的 JSON
+  responseBody  String?  @db.Text     // 回调响应
+  status        String   @default("pending") // pending / success / failed / retrying
+  retryCount    Int      @default(0)
+  errorMsg      String?  @db.Text     // 错误信息
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  instance      FlowInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("flow_callback")
+}
+
+// ============================================================
+// 回调配置 — 子系统注册回调URL
+// ============================================================
+model FlowCallbackConfig {
+  id            String   @id @default(cuid())
+  system        String   @unique      // 子系统编码（scm / hrms）
+  callbackUrl   String                // 回调URL（如 http://localhost:4003/api/workflow/callback）
+  secret        String?               // 签名密钥（可选）
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("flow_callback_config")
+}

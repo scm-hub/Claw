@@ -1,0 +1,23 @@
+
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>价目表测试</title>
+<style>.sub-tab{padding:8px;margin:0 4px;cursor:pointer;border-bottom:2px solid transparent}.sub-tab.active{color:#1a73e8;border-color:#1a73e8}</style>
+</head>
+<body>
+<h3>价目表点击测试</h3>
+<div class="sub-tabs">
+  <span class="sub-tab" onclick="navigateTest('base')">客户列表</span>
+  <span class="sub-tab" onclick="navigateTest('contact')">联系人</span>
+  <span class="sub-tab" onclick="navigateTest('address')">收货地址</span>
+  <span class="sub-tab" onclick="navigateTest('price')">价目表</span>
+</div>
+<div id="content"></div>
+<script>
+function navigateTest(sub){
+  document.getElementById('content').innerHTML='点击了: '+sub;
+  console.log('navigate called with:', sub);
+}
+</script>
+</body>
+</html>

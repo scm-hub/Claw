@@ -1,0 +1,95 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+/// 主数据 — 部门（镜像 HRMS）
+model MasterDepartment {
+  id             String   @id @default(cuid())
+  hrmsId         String   @unique @map("hrms_id")
+  name           String
+  parentId       String?  @map("parent_id")
+  managerHrmsId  String?  @map("manager_hrms_id")
+  sortOrder      Int      @default(0) @map("sort_order")
+  status         String   @default("ACTIVE")
+  lastSyncAt     DateTime @default(now()) @map("last_sync_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("master_departments")
+}
+
+/// 主数据 — 员工（镜像 HRMS）
+model MasterEmployee {
+  id               String    @id @default(cuid())
+  hrmsId           String    @unique @map("hrms_id")
+  employeeNo       String    @unique @map("employee_no")
+  name             String
+  gender           String    @default("MALE")
+  phone            String    @default("")
+  email            String    @default("")
+  status           String    @default("ACTIVE")
+  hireDate         DateTime? @map("hire_date")
+  departmentHrmsId String?   @map("department_hrms_id")
+  departmentName   String    @default("") @map("department_name")
+  positionTitle    String    @default("") @map("position_title")
+  lastSyncAt       DateTime  @default(now()) @map("last_sync_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@map("master_employees")
+}
+
+/// 数据映射 — 主数据 ↔ 各子系统
+model DataMapping {
+  id             String    @id @default(cuid())
+  entityType     String    @map("entity_type")
+  masterId       String    @map("master_id")
+  systemCode     String    @map("system_code")
+  systemEntityId String?   @map("system_entity_id")
+  syncStatus     String    @default("PENDING") @map("sync_status")
+  lastSyncAt     DateTime? @map("last_sync_at")
+  errorMessage   String    @default("") @map("error_message")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@unique([entityType, masterId, systemCode])
+  @@index([systemCode, syncStatus])
+  @@map("data_mappings")
+}
+
+/// 同步日志
+model SyncLog {
+  id           String    @id @default(cuid())
+  syncType     String    @map("sync_type")
+  entityType   String    @default("ALL") @map("entity_type")
+  status       String    @default("RUNNING")
+  totalRecords Int       @default(0) @map("total_records")
+  successCount Int       @default(0) @map("success_count")
+  failedCount  Int       @default(0) @map("failed_count")
+  details      String?   @db.Text
+  startedAt    DateTime  @default(now()) @map("started_at")
+  finishedAt   DateTime? @map("finished_at")
+
+  @@map("sync_logs")
+}
+
+/// 同步配置
+model SyncConfig {
+  id           String    @id @default(cuid())
+  systemCode   String    @unique @map("system_code")
+  systemName   String    @map("system_name")
+  apiUrl       String    @default("") @map("api_url")
+  apiKey       String    @default("") @map("api_key")
+  autoSync     Boolean   @default(false) @map("auto_sync")
+  syncInterval Int       @default(3600) @map("sync_interval")
+  lastSyncAt   DateTime? @map("last_sync_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@map("sync_configs")
+}

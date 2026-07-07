@@ -1,0 +1,26 @@
+{
+  "name": "workflow-engine",
+  "version": "1.0.0",
+  "description": "杭州鲜当家统一审批流引擎 - 全系统通用审批服务",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "prisma:generate": "prisma generate",
+    "prisma:push": "prisma db push",
+    "seed": "node prisma/seed.js"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.3.0",
+    "axios": "^1.7.9",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "mysql2": "^3.22.5"
+  },
+  "devDependencies": {
+    "prisma": "^6.3.0"
+  }
+}

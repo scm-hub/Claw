@@ -1,0 +1,155 @@
+// 杭州鲜当家统一平台 SSO 认证中心 — Prisma Schema
+// 独立数据库 portal_db，仅存储系统注册、访问权限、审计日志
+// 用户认证通过 HRMS API 完成，不直接操作 HRMS 数据库
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// 系统注册表 — 每个接入 SSO 的业务子系统
+// ============================================================
+model SystemRegistry {
+  id          String   @id @default(cuid())
+  code        String   @unique // 系统编码: hrms, scm, mdm, ...
+  name        String            // 系统名称
+  description String   @default("")
+  url         String            // 系统前端地址
+  apiUrl      String   @default("") // 系统后端 API 地址
+  icon        String   @default("") // 图标（emoji 或图标名）
+  color       String   @default("#1976d2") // 主题色
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  userAccess  UserSystemAccess[]
+
+  @@map("system_registry")
+}
+
+// ============================================================
+// 用户-系统访问权限
+// ============================================================
+model UserSystemAccess {
+  id         String   @id @default(cuid())
+  userEmail  String            // 用户邮箱（来自 HRMS，唯一标识用户）
+  systemCode String            // 系统编码
+  canAccess  Boolean  @default(true)
+  systemRole String?           // 用户在该系统中的角色（如 SCM 的 PURCHASE_MANAGER）
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  system     SystemRegistry @relation(fields: [systemCode], references: [code])
+
+  @@unique([userEmail, systemCode])
+  @@index([userEmail])
+  @@map("user_system_access")
+}
+
+// ============================================================
+// 角色 — 统一权限管理的核心
+// ============================================================
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String   @default("")
+  isSystem    Boolean  @default(false) // 系统内置角色不可删除
+  scmRole     String?  // 映射到 SCM 内部角色 (SUPER_ADMIN, PURCHASE_MANAGER, ...)
+  hrmsRole    String?  // 映射到 HRMS 内部角色
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  permissions RolePermission[]
+  userRoles   UserRole[]
+
+  @@map("role")
+}
+
+// ============================================================
+// 角色权限 — 角色在各子系统各模块的访问权限
+// ============================================================
+model RolePermission {
+  id         String   @id @default(cuid())
+  roleId     String
+  systemCode String   // scm, hrms, mdm
+  moduleCode String   // master, purchase, sales, employees, ...
+  createdAt  DateTime @default(now())
+
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, systemCode, moduleCode])
+  @@map("role_permission")
+}
+
+// ============================================================
+// 用户-角色关联 — 给用户分配角色
+// ============================================================
+model UserRole {
+  id        String   @id @default(cuid())
+  userEmail String   // 用户邮箱（来自 HRMS）
+  roleId    String
+  createdAt DateTime @default(now())
+
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userEmail, roleId])
+  @@index([userEmail])
+  @@map("user_role")
+}
+
+// ============================================================
+// 用户缓存表 — SSO 登录时从 HRMS 同步，减少 API 代理依赖
+// ============================================================
+model PortalUser {
+  id            String   @id @default(cuid())
+  email         String   @unique           // HRMS 邮箱，唯一标识
+  globalId      String?  @unique           // 跨系统统一 ID，来自 HRMS Employee
+  name          String   @default("")      // 员工姓名
+  employeeNo    String?  @unique           // 工号
+  departmentId  String?                    // 部门 ID（来自 HRMS）
+  departmentName String  @default("")      // 部门名称（冗余存储）
+  position      String   @default("")      // 岗位
+  phone         String   @default("")      // 手机号
+  lastLoginAt   DateTime?                  // 最后登录时间
+  hrmsRole      String   @default("EMPLOYEE") // HRMS 原始角色
+  isActive      Boolean  @default(true)    // 是否在职
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([globalId])
+  @@index([employeeNo])
+  @@map("portal_user")
+}
+
+// ============================================================
+// 审计日志 / 操作日志
+// ============================================================
+model AuditLog {
+  id          String   @id @default(cuid())
+  userEmail   String
+  userName    String?           // 用户显示名
+  action      String            // LOGIN, LOGOUT, ACCESS_SYSTEM, CREATE, UPDATE, DELETE, ACCESS_DENIED
+  systemCode  String?           // 子系统编码
+  method      String?           // HTTP 方法: GET, POST, PUT, DELETE
+  path        String?           // API 路径
+  targetType  String?           // 操作对象类型: system, access, customer, supplier...
+  targetId    String?           // 操作对象 ID
+  detail      String   @default("") // 操作描述
+  requestBody String?  @db.Text // 请求体 (JSON, 已脱敏)
+  statusCode  Int?              // 响应状态码
+  ip          String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@index([userEmail])
+  @@index([createdAt])
+  @@index([action])
+  @@index([systemCode])
+  @@map("audit_log")
+}
