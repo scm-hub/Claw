@@ -10,7 +10,7 @@ const Login = lazy(() => import('./modules/portal/Login'));
 // 各模块首页（懒加载）
 const Workbench = lazy(() => import('./modules/portal/Workbench'));
 const Profile = lazy(() => import('./modules/portal/Profile'));
-const AIHome = lazy(() => import('./modules/ai/AIHome'));
+const AIChat = lazy(() => import('./modules/ai/AIChat'));
 
 // HRMS 页面
 const HRDashboard = lazy(() => import('./modules/hrms/HRDashboard'));
@@ -90,7 +90,7 @@ export default function App() {
           <Route path="hrms/leaves" element={<HRLeaves />} />
           <Route path="hrms/salary" element={<HRSalary />} />
           <Route path="hrms/employees" element={<HREmployees />} />
-          <Route path="ai/*" element={<AIHome />} />
+          <Route path="ai" element={<AIChat />} />
         </Route>
 
         {/* 404 */}
