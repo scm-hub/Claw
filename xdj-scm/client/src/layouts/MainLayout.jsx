@@ -37,6 +37,7 @@ const menuGroups = [
       { path: '/master/print-templates', label: '打印管理', icon: <PrintIcon />, module: 'master-print-templates' },
       { path: '/master/vehicle-types', label: '车型管理', icon: <LogisticsIcon />, module: 'master-vehicle-types' },
       { path: '/master/stock-standards', label: '安全库存标准', icon: <ShieldIcon />, module: 'master-stock-standards' },
+      { path: '/master/stock-alerts', label: '库存预警', icon: <ShieldIcon />, module: 'master-stock-alerts' },
       { path: '/master/addresses', label: '地址管理', icon: <RouteIcon />, module: 'master-addresses' },
     ],
   },
@@ -169,6 +170,14 @@ export default function MainLayout() {
           >
             <ListItemIcon><DashboardIcon /></ListItemIcon>
             <ListItemText primary="仪表盘" />
+          </ListItemButton>
+
+          <ListItemButton
+            selected={location.pathname === '/dashboard/stock-monitor'}
+            onClick={() => navigate('/dashboard/stock-monitor')}
+          >
+            <ListItemIcon><ShieldIcon fontSize="small" /></ListItemIcon>
+            <ListItemText primary="库存监控" />
           </ListItemButton>
 
           {visibleGroups.map((group) => (

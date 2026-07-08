@@ -4,6 +4,7 @@ import SsoAutoLogin from './components/SsoAutoLogin';
 import MainLayout from './layouts/MainLayout';
 import Login from './pages/Login';
 import Dashboard from './pages/dashboard/Dashboard';
+import StockMonitor from './pages/dashboard/StockMonitor';
 
 // 基础数据管理
 import MaterialGradeList from './pages/master/MaterialGradeList';
@@ -19,6 +20,7 @@ import PurchaserAssignment from './pages/master/PurchaserAssignment';
 import PrintTemplateList from './pages/master/PrintTemplateList';
 import VehicleTypeList from './pages/master/VehicleTypeList';
 import StockStandardList from './pages/master/StockStandardList';
+import StockAlertList from './pages/master/StockAlertList';
 
 // 采购管理
 import PurchasePlanList from './pages/purchase/PurchasePlanList';
@@ -94,6 +96,7 @@ export default function App() {
           }
         >
           <Route index element={<Dashboard />} />
+          <Route path="dashboard/stock-monitor" element={<StockMonitor />} />
 
           {/* 基础数据 */}
           <Route path="master/material-grades" element={<MaterialGradeList />} />
@@ -109,6 +112,7 @@ export default function App() {
           <Route path="master/print-templates" element={<PrintTemplateList />} />
           <Route path="master/vehicle-types" element={<VehicleTypeList />} />
           <Route path="master/stock-standards" element={<StockStandardList />} />
+          <Route path="master/stock-alerts" element={<StockAlertList />} />
           <Route path="master/addresses" element={<AddressList />} />
 
           {/* 采购管理 */}
