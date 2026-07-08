@@ -56,9 +56,10 @@ const ONBOARDING_SELECT = {
 };
 
 // 列表
-export const listOnboardings = async ({ status, search, page = 1, pageSize = 10 }) => {
+export const listOnboardings = async ({ status, search, department, page = 1, pageSize = 10 }) => {
   const where = {};
   if (status) where.status = status;
+  if (department) where.employee = { departmentId: department };
   if (search) {
     where.OR = [
       { employee: { name: { contains: search } } },
@@ -390,14 +391,15 @@ export const deleteOnboarding = async (id) => {
 };
 
 // 统计
-export const getStats = async () => {
+export const getStats = async (departmentFilter) => {
+  const deptWhere = departmentFilter ? { employee: { departmentId: departmentFilter } } : {};
   const [pending, materialReview, deptConfirm, adminProcess, completed, rejected] = await Promise.all([
-    prisma.employeeOnboarding.count({ where: { status: 'PENDING' } }),
-    prisma.employeeOnboarding.count({ where: { status: 'MATERIAL_REVIEW' } }),
-    prisma.employeeOnboarding.count({ where: { status: 'DEPT_CONFIRM' } }),
-    prisma.employeeOnboarding.count({ where: { status: 'ADMIN_PROCESS' } }),
-    prisma.employeeOnboarding.count({ where: { status: 'COMPLETED' } }),
-    prisma.employeeOnboarding.count({ where: { status: 'REJECTED' } }),
+    prisma.employeeOnboarding.count({ where: { status: 'PENDING', ...deptWhere } }),
+    prisma.employeeOnboarding.count({ where: { status: 'MATERIAL_REVIEW', ...deptWhere } }),
+    prisma.employeeOnboarding.count({ where: { status: 'DEPT_CONFIRM', ...deptWhere } }),
+    prisma.employeeOnboarding.count({ where: { status: 'ADMIN_PROCESS', ...deptWhere } }),
+    prisma.employeeOnboarding.count({ where: { status: 'COMPLETED', ...deptWhere } }),
+    prisma.employeeOnboarding.count({ where: { status: 'REJECTED', ...deptWhere } }),
   ]);
   return { pending, materialReview, deptConfirm, adminProcess, completed, rejected };
 };

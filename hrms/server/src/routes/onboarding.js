@@ -2,6 +2,7 @@ import { Router } from 'express';
 import * as onbService from '../services/onboarding.service.js';
 import { authenticate } from '../middleware/auth.js';
 import { authorize } from '../middleware/rbac.js';
+import { getDepartmentFilter } from '../middleware/departmentScope.js';
 
 const router = Router();
 
@@ -20,21 +21,24 @@ router.get('/default-materials', authenticate, (req, res) => {
   res.json({ success: true, data: onbService.getDefaultMaterials() });
 });
 
-// 入职统计
+// 入职统计（已添加数据隔离）
 router.get('/stats', authenticate, async (req, res, next) => {
   try {
-    const stats = await onbService.getStats();
+    const deptFilter = getDepartmentFilter(req);
+    const stats = await onbService.getStats(deptFilter);
     res.json({ success: true, data: stats });
   } catch (err) { next(err); }
 });
 
-// 入职记录列表
+// 入职记录列表（已添加数据隔离）
 router.get('/', authenticate, async (req, res, next) => {
   try {
     const { status, search, page, pageSize } = req.query;
+    const deptFilter = getDepartmentFilter(req);
     const result = await onbService.listOnboardings({
       status: status || undefined,
       search: search || undefined,
+      department: deptFilter || undefined,
       page: parseInt(page) || 1,
       pageSize: parseInt(pageSize) || 10,
     });

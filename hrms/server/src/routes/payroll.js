@@ -3,6 +3,7 @@ import multer from 'multer';
 import * as payrollService from '../services/payroll.service.js';
 import { authenticate } from '../middleware/auth.js';
 import { authorize } from '../middleware/rbac.js';
+import { getDepartmentFilter } from '../middleware/departmentScope.js';
 
 const router = Router();
 const upload = multer({
@@ -22,13 +23,15 @@ const upload = multer({
   },
 });
 
-// 列表
+// 列表（已添加数据隔离：部门负责人只能看本部门薪资数据）
 router.get('/records', authenticate, async (req, res, next) => {
   try {
     const { month, department, company, search, page, pageSize } = req.query;
+    // 数据隔离：非管理员强制只看本部门
+    const deptFilter = getDepartmentFilter(req);
     const result = await payrollService.listPayrollRecords({
       month,
-      department,
+      department: deptFilter || department,
       company,
       search,
       page: parseInt(page) || 1,
@@ -40,11 +43,12 @@ router.get('/records', authenticate, async (req, res, next) => {
   }
 });
 
-// 统计汇总
+// 统计汇总（已添加数据隔离）
 router.get('/summary', authenticate, async (req, res, next) => {
   try {
     const { month } = req.query;
-    const result = await payrollService.getPayrollSummary(month);
+    const deptFilter = getDepartmentFilter(req);
+    const result = await payrollService.getPayrollSummary(month, deptFilter);
     res.json({ success: true, data: result });
   } catch (err) {
     next(err);

@@ -153,9 +153,10 @@ export async function deletePayrollByMonth(month) {
 /**
  * 统计汇总
  */
-export async function getPayrollSummary(month) {
+export async function getPayrollSummary(month, departmentFilter) {
   const where = {};
   if (month) where.month = month;
+  if (departmentFilter) where.department = departmentFilter;
 
   const records = await prisma.payrollRecord.findMany({
     where,
