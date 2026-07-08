@@ -1,8 +1,13 @@
 import React, { useState } from 'react';
 import { Box, TextField, Button, Typography, Alert, CircularProgress } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import api from '../../shared/api';
 import useAuthStore from '../../store/authStore';
+import { Capacitor } from '@capacitor/core';
+
+// 原生 App 用外网地址，Web 用相对路径
+const API_BASE = Capacitor.isNativePlatform()
+  ? 'http://111.17.201.197:5174/api'
+  : '/api';
 
 export default function Login() {
   const [account, setAccount] = useState('');
@@ -21,10 +26,23 @@ export default function Login() {
     setLoading(true);
     setError('');
     try {
-      // 通过 Portal SSO 登录
-      const loginRes = await api.post('/api/auth/login', { account, password });
-      const { token, user } = loginRes.data;
-      setAuth(user, token);
+      // Portal 统一认证接口（用 email 字段传递账号）
+      const res = await fetch(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: account, password }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.message || '登录失败');
+      }
+      const { token, user, permissions, systemRoles } = data.data;
+      setAuth({
+        ...user,
+        role: systemRoles?.scm || user.role,
+        permissions,
+        systemRoles,
+      }, token);
       navigate('/workbench', { replace: true });
     } catch (err) {
       setError(err.message || '登录失败');
