@@ -1,9 +1,11 @@
 /**
  * 生物认证（指纹/面容）服务
- * 当前版本：暂不依赖原生插件，仅做本地标记
- * 后续可通过 Capacitor Plugin API 接入原生 BiometricPrompt
+ * 通过自定义 Capacitor 插件调用 Android BiometricPrompt API
  */
 import { Capacitor } from '@capacitor/core';
+import { registerPlugin } from '@capacitor/core';
+
+const BiometricNative = registerPlugin('BiometricNative');
 
 const BIO_ENABLED_KEY = 'xdj_biometric_enabled';
 const BIO_USERNAME_KEY = 'xdj_biometric_username';
@@ -13,8 +15,15 @@ export function isNativePlatform() {
 }
 
 export async function checkBiometricAvailable() {
-  // 原生平台默认返回 true，让用户尝试
-  return isNativePlatform();
+  if (!isNativePlatform()) return false;
+  try {
+    const result = await BiometricNative.isAvailable();
+    console.log('[Biometric] isAvailable:', JSON.stringify(result));
+    return result.isAvailable === true;
+  } catch (e) {
+    console.error('[Biometric] isAvailable error:', e);
+    return false;
+  }
 }
 
 export async function isBiometricEnabled() {
@@ -38,7 +47,17 @@ export async function disableBiometric() {
 }
 
 export async function authenticateWithBiometric() {
-  // 简化：已启用即视为通过（实际认证由后续原生插件实现）
-  const enabled = await isBiometricEnabled();
-  return enabled;
+  if (!isNativePlatform()) return false;
+  try {
+    const result = await BiometricNative.authenticate({
+      title: '鲜当家身份验证',
+      subtitle: '请验证指纹或面容以登录',
+      cancelText: '取消',
+    });
+    console.log('[Biometric] authenticate:', JSON.stringify(result));
+    return result.success === true;
+  } catch (e) {
+    console.error('[Biometric] authenticate error:', e);
+    return false;
+  }
 }
