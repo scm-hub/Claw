@@ -7,7 +7,6 @@ import {
   isBiometricEnabled,
   enableBiometric,
   disableBiometric,
-  authenticateWithBiometric,
   isNativePlatform,
 } from '../../shared/biometric';
 
@@ -28,13 +27,6 @@ export default function Profile() {
     setBioLoading(true);
     try {
       if (checked) {
-        // 先调用系统生物认证验证身份
-        const authSuccess = await authenticateWithBiometric();
-        if (!authSuccess) {
-          setSnackbar('生物认证失败或已取消，未开启');
-          setBioLoading(false);
-          return;
-        }
         const username = user?.employee?.employeeNo || user?.email || '';
         if (!username) { setSnackbar('无法获取用户信息'); setBioLoading(false); return; }
         await enableBiometric(username);
