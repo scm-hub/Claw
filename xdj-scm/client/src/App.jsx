@@ -81,84 +81,92 @@ function ProtectedRoute({ children }) {
 export default function App() {
   return (
     <SsoAutoLogin>
-    <Routes>
-      <Route path="/login" element={<Login />} />
+      <Routes>
+        <Route path="/login" element={<Login />} />
 
-      <Route path="/" element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
-        <Route index element={<Dashboard />} />
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <MainLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<Dashboard />} />
 
-        {/* 基础数据 */}
-        <Route path="master/material-grades" element={<MaterialGradeList />} />
-        <Route path="master/material-groups" element={<MaterialGroupList />} />
-        <Route path="master/materials" element={<MaterialList />} />
-        <Route path="master/customers" element={<CustomerList />} />
-        <Route path="master/suppliers" element={<SupplierList />} />
-        <Route path="master/warehouses" element={<WarehouseList />} />
-        <Route path="master/employees" element={<EmployeeList />} />
-        <Route path="master/departments" element={<DepartmentList />} />
-        <Route path="master/purchaser-assignments" element={<PurchaserAssignment />} />
-        <Route path="master/providers" element={<LogisticsProviderList />} />
-        <Route path="master/print-templates" element={<PrintTemplateList />} />
-        <Route path="master/vehicle-types" element={<VehicleTypeList />} />
+          {/* 基础数据 */}
+          <Route path="master/material-grades" element={<MaterialGradeList />} />
+          <Route path="master/material-groups" element={<MaterialGroupList />} />
+          <Route path="master/materials" element={<MaterialList />} />
+          <Route path="master/customers" element={<CustomerList />} />
+          <Route path="master/suppliers" element={<SupplierList />} />
+          <Route path="master/warehouses" element={<WarehouseList />} />
+          <Route path="master/employees" element={<EmployeeList />} />
+          <Route path="master/departments" element={<DepartmentList />} />
+          <Route path="master/purchaser-assignments" element={<PurchaserAssignment />} />
+          <Route path="master/providers" element={<LogisticsProviderList />} />
+          <Route path="master/print-templates" element={<PrintTemplateList />} />
+          <Route path="master/vehicle-types" element={<VehicleTypeList />} />
+          <Route path="master/addresses" element={<AddressList />} />
 
-        {/* 采购管理 */}
-        <Route path="purchase/plans" element={<PurchasePlanList />} />
-        <Route path="purchase/orders" element={<PurchaseOrderList />} />
-        <Route path="purchase/receipts" element={<ReceiptList />} />
+          {/* 采购管理 */}
+          <Route path="purchase/plans" element={<PurchasePlanList />} />
+          <Route path="purchase/orders" element={<PurchaseOrderList />} />
+          <Route path="purchase/receipts" element={<ReceiptList />} />
 
-        {/* 销售管理 */}
-        <Route path="sales/plans" element={<SalesPlanList />} />
-        <Route path="sales/orders" element={<SalesOrderList />} />
-        <Route path="sales/prices" element={<PriceListPage />} />
-        <Route path="sales/credit" element={<CreditManagement />} />
-        <Route path="sales/demand-aggregation" element={<DemandAggregation />} />
+          {/* 销售管理 */}
+          <Route path="sales/plans" element={<SalesPlanList />} />
+          <Route path="sales/orders" element={<SalesOrderList />} />
+          <Route path="sales/prices" element={<PriceListPage />} />
+          <Route path="sales/credit" element={<CreditManagement />} />
+          <Route path="sales/demand-aggregation" element={<DemandAggregation />} />
 
-        {/* 仓储WMS */}
-        <Route path="wms/inventory" element={<InventoryList />} />
-        <Route path="wms/zones" element={<ZoneLocationList />} />
-        <Route path="wms/movements" element={<StockMovementList />} />
-        <Route path="wms/stock-takes" element={<StockTakeList />} />
+          {/* 仓储WMS */}
+          <Route path="wms/inventory" element={<InventoryList />} />
+          <Route path="wms/zones" element={<ZoneLocationList />} />
+          <Route path="wms/movements" element={<StockMovementList />} />
+          <Route path="wms/stock-takes" element={<StockTakeList />} />
 
-        {/* 批次追溯 */}
-        <Route path="traceability/batches" element={<BatchList />} />
-        <Route path="traceability/trace" element={<BatchTrace />} />
-        <Route path="traceability/recall" element={<RecallList />} />
-        <Route path="traceability/stock-age" element={<StockAgeAnalysis />} />
+          {/* 批次追溯 */}
+          <Route path="traceability/batches" element={<BatchList />} />
+          <Route path="traceability/trace" element={<BatchTrace />} />
+          <Route path="traceability/recall" element={<RecallList />} />
+          <Route path="traceability/stock-age" element={<StockAgeAnalysis />} />
 
-        {/* 财务结算 */}
-        <Route path="finance/receivable" element={<ReceivableList />} />
-        <Route path="finance/payable" element={<PayableList />} />
-        <Route path="finance/invoices" element={<InvoiceList />} />
-        <Route path="finance/payments" element={<PaymentList />} />
+          {/* 财务结算 */}
+          <Route path="finance/receivable" element={<ReceivableList />} />
+          <Route path="finance/payable" element={<PayableList />} />
+          <Route path="finance/invoices" element={<InvoiceList />} />
+          <Route path="finance/payments" element={<PaymentList />} />
 
-        {/* 成本引擎 */}
-        <Route path="cost/config" element={<CostConfigList />} />
-        <Route path="cost/standard" element={<StandardCostList />} />
+          {/* 成本引擎 */}
+          <Route path="cost/config" element={<CostConfigList />} />
+          <Route path="cost/standard" element={<StandardCostList />} />
 
-        {/* 物流管理 */}
-        <Route path="logistics/waybills" element={<WaybillList />} />
-        <Route path="logistics/routes" element={<DeliveryRouteList />} />
-        <Route path="logistics/shipping-orders" element={<ShippingOrderList />} />
+          {/* 物流管理 */}
+          <Route path="logistics/waybills" element={<WaybillList />} />
+          <Route path="logistics/routes" element={<DeliveryRouteList />} />
+          <Route path="logistics/shipping-orders" element={<ShippingOrderList />} />
 
-        {/* 冷链监控 */}
-        <Route path="coldchain/dashboard" element={<TemperatureDashboard />} />
-        <Route path="coldchain/sensors" element={<SensorList />} />
+          {/* 冷链监控 */}
+          <Route path="coldchain/dashboard" element={<TemperatureDashboard />} />
+          <Route path="coldchain/sensors" element={<SensorList />} />
 
-        {/* 其他模块 */}
-        <Route path="barcode" element={<BarcodeScan />} />
-        <Route path="contract" element={<ContractList />} />
-        <Route path="aftersales" element={<AfterSalesList />} />
-        <Route path="approval" element={<ApprovalList />} />
-        <Route path="analytics" element={<AnalyticsDashboard />} />
-        <Route path="alert" element={<AlertList />} />
-        <Route path="supplier-eval" element={<SupplierEvalList />} />
+          {/* 其他模块 */}
+          <Route path="barcode" element={<BarcodeScan />} />
+          <Route path="contract" element={<ContractList />} />
+          <Route path="aftersales" element={<AfterSalesList />} />
+          <Route path="approval" element={<ApprovalList />} />
+          <Route path="analytics" element={<AnalyticsDashboard />} />
+          <Route path="alert" element={<AlertList />} />
+          <Route path="supplier-eval" element={<SupplierEvalList />} />
 
-        {/* 系统设置 — 用户管理已迁移到统一平台 Portal */}
-        <Route path="settings/users" element={<Navigate to="/" replace />} />
-      </Route>
+          {/* 系统设置 — 用户管理已迁移到统一平台 Portal */}
+          <Route path="settings/users" element={<Navigate to="/" replace />} />
+        </Route>
 
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </SsoAutoLogin>
   );
 }
