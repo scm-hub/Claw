@@ -24,8 +24,10 @@ export async function checkBiometricAvailable() {
   if (!isNativePlatform()) return false;
   try {
     const result = await BiometricAuth.checkAvailability();
-    return result.isAvailable;
-  } catch {
+    console.log('[Biometric] checkAvailability result:', JSON.stringify(result));
+    return result.isAvailable === true;
+  } catch (e) {
+    console.error('[Biometric] checkAvailability error:', e);
     return false;
   }
 }

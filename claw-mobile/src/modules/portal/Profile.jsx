@@ -22,7 +22,17 @@ export default function Profile() {
 
   useEffect(() => {
     isBiometricEnabled().then(setBioEnabled);
-    checkBiometricAvailable().then(setBioAvailable);
+    // 延迟检查，确保 Capacitor 插件已完全初始化
+    setTimeout(async () => {
+      try {
+        const available = await checkBiometricAvailable();
+        console.log('[Profile] 生物认证可用:', available);
+        setBioAvailable(available);
+      } catch (e) {
+        console.warn('[Profile] 生物认证检查失败:', e);
+        setBioAvailable(false);
+      }
+    }, 500);
   }, []);
 
   const handleBioToggle = async (e) => {
