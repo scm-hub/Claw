@@ -127,6 +127,8 @@ model Warehouse {
   managerId     String?
   warehouseManagerId String?
   isColdStorage Boolean  @default(false)
+  isRemote      Boolean  @default(false)                 // 是否异地外仓
+  transferLeadDays Int?                                    // 总部调拨至该仓所需天数（>0=可调拨外仓）
   status        String   @default("ACTIVE")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -144,6 +146,11 @@ model Warehouse {
   purchaseReceipts PurchaseReceipt[]
   salesOrders  SalesOrder[]
   shippingOrders ShippingOrder[]
+
+  // 安全库存反向关系
+  stockStandards     StockStandard[]
+  stockLevels        StockLevel[]
+  stockAlerts        StockAlert[]
 
   @@map("warehouses")
 }
@@ -200,7 +207,8 @@ model MaterialGroup {
   id          String   @id @default(cuid())
   code        String   @unique                          // 产品组编码，如 XBG（杏鲍菇）
   name        String                                    // 产品组名称，如"杏鲍菇"
-  category    String?                                   // 产品分类
+  category    String?                                   // 产品分类（鲜品/干品/耗材等）
+  stockCategory String?                                  // 安全库存品类 A/B/C/D（A=流通鲜菌 B=珍稀菌 C=预制冻品 D=包装耗材）
   description String?                                   // 描述
   status      String   @default("ACTIVE")               // ACTIVE/INACTIVE
   createdAt   DateTime @default(now())
@@ -304,6 +312,11 @@ model Material {
   group              MaterialGroup? @relation(fields: [groupId], references: [id])
 
   materialGrades     MaterialGradeMapping[]             // 关联的等级（多对多）
+
+  // 安全库存反向关系
+  stockStandards     StockStandard[]
+  stockLevels        StockLevel[]
+  stockAlerts        StockAlert[]
 
   @@index([code])
   @@index([name])
@@ -1849,4 +1862,103 @@ model Address {
   shippingOrders ShippingOrder[]
 
   @@map("addresses")
+}
+
+// ============================================================
+// 三十、安全库存管理
+// ============================================================
+
+// 波动系数季节配置
+model SeasonConfig {
+  id          String   @id @default(cuid())
+  code        String   @unique                    // NORMAL / PROMOTION / PEAK / EXTREME
+  name        String                              // 常规淡季 / 促销活动 / 旺季 / 极端行情
+  coefficient  Float                                // 波动系数：1.0 / 1.3 / 1.6 / 2.0
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  stockStandards StockStandard[]
+
+  @@map("season_configs")
+}
+
+// 安全库存标准（物料×仓库 = 唯一）
+model StockStandard {
+  id              String   @id @default(cuid())
+  materialId      String
+  warehouseId     String
+  seasonConfigId  String                              // 当前生效的波动系数
+  // 计算参数
+  avgDailySales    Float?                                // 近30天日均销量（自动计算）
+  procurementDays  Int     @default(3)                   // 采购提前期（继承物料，允许手动覆盖）
+  maxStorageDays   Int     @default(3)                   // 最大存储天数（保质期×60%）
+  remoteAdjust    Float?                                  // 外仓调整系数（null=总部仓，0.8/1.3=外仓）
+  // 计算结果
+  safetyStock     Float?                                  // 安全库存
+  warnStock       Float?                                  // 预警库存（安全库存×1.8）
+  maxStock        Float?                                  // 最高库存
+  // 状态
+  status          String   @default("ACTIVE")           // ACTIVE / INACTIVE
+  lastCalcTime    DateTime?                               // 最近一次计算时间
+  createdBy       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  material        Material      @relation(fields: [materialId], references: [id])
+  warehouse       Warehouse     @relation(fields: [warehouseId], references: [id])
+  seasonConfig    SeasonConfig  @relation(fields: [seasonConfigId], references: [id])
+
+  @@unique([materialId, warehouseId])
+  @@index([materialId])
+  @@index([warehouseId])
+  @@index([status])
+  @@map("stock_standards")
+}
+
+// 每日库存水位快照
+model StockLevel {
+  id            String   @id @default(cuid())
+  materialId    String
+  warehouseId   String
+  snapshotDate  DateTime                              // 快照日期
+  currentQty    Float                                   // 当前库存数量
+  safetyStock   Float                                   // 当时的安全库存标准
+  warnStock     Float                                   // 当时的预警库存
+  maxStock      Float                                   // 当时的最高库存
+  level         String                                  // GREEN(正常) / YELLOW(预警) / ORANGE(超上限) / RED(低于安全)
+  createdAt     DateTime @default(now())
+
+  material      Material     @relation(fields: [materialId], references: [id])
+  warehouse     Warehouse    @relation(fields: [warehouseId], references: [id])
+
+  @@index([materialId, warehouseId, snapshotDate])
+  @@index([snapshotDate])
+  @@map("stock_levels")
+}
+
+// 库存预警记录
+model StockAlert {
+  id            String   @id @default(cuid())
+  materialId    String
+  warehouseId   String
+  alertType     String                                  // LOW_STOCK(低于安全) / HIGH_STOCK(超上限) / APPROACHING(逼近)
+  level         String                                  // RED / ORANGE / YELLOW
+  currentQty    Float                                   // 触发时库存
+  thresholdQty  Float                                   // 阈值
+  status        String   @default("ACTIVE")             // ACTIVE / PROCESSING / RESOLVED / DISMISSED
+  processedBy   String?
+  processedAt   DateTime?
+  resolution    String?   @db.Text                       // 处理备注
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  material      Material     @relation(fields: [materialId], references: [id])
+  warehouse     Warehouse    @relation(fields: [warehouseId], references: [id])
+
+  @@index([materialId, warehouseId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("stock_alerts")
 }
