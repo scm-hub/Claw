@@ -2,12 +2,9 @@ import React, { useState } from 'react';
 import { Box, TextField, Button, Typography, Alert, CircularProgress } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../../store/authStore';
-import { Capacitor } from '@capacitor/core';
 
-// 原生 App 用外网地址，Web 用相对路径
-const API_BASE = Capacitor.isNativePlatform()
-  ? 'http://111.17.201.197:5174/api'
-  : '/api';
+// server.url 模式下，WebView 从远程加载，同源请求，直接用 /api
+const API_BASE = '/api';
 
 export default function Login() {
   const [account, setAccount] = useState('');
