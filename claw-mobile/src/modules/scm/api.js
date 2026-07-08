@@ -35,7 +35,8 @@ async function request(url, options = {}) {
     const isLoginRequest = url.includes('/auth/mobile-login') || url.includes('/auth/login');
     if (!isLoginRequest) {
       localStorage.removeItem('claw_auth');
-      window.location.href = '/login';
+      // 使用 React Router 的导航而非 window.location，避免跳出 SPA
+      window.location.href = '/mobile/login';
       throw new Error('认证已过期');
     }
   }

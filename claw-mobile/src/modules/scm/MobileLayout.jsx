@@ -84,7 +84,7 @@ export default function MobileLayout() {
 
   const handleLogout = () => {
     clearAuth();
-    navigate('/login');
+    navigate('/mobile/login');
   };
 
   const displayName = user?.employee?.name || user?.username || '用户';

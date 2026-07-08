@@ -140,7 +140,7 @@ export default function Dashboard() {
             <Typography variant="body2">
               共 {data.batch.expiringCount} 个批次将在30天内过期
             </Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ cursor: 'pointer' }} onClick={() => navigate('/inventory')}>
+            <Typography variant="caption" color="text.secondary" sx={{ cursor: 'pointer' }} onClick={() => navigate('/scm/inventory')}>
               查看详情 →
             </Typography>
           </CardContent>
