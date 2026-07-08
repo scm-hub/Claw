@@ -35,7 +35,7 @@ export default function Login() {
       }
       const { token, user, permissions, systemRoles } = loginData.data;
 
-      // 2. 通过 SCM SSO 获取 SCM token（SCM API 需要自己的 token）
+      // 2. 通过 SCM SSO 获取 SCM token
       let scmToken = token;
       try {
         const ssoRes = await fetch('/mobile/api/auth/sso-login', {
@@ -47,12 +47,25 @@ export default function Login() {
         if (ssoData.success && ssoData.data?.token) {
           scmToken = ssoData.data.token;
         }
-      } catch {
-        // SSO 失败不阻塞登录
-      }
+      } catch { /* ignore */ }
 
-      // 存储时同时保存 Portal token 和 SCM token
+      // 3. 通过 HRMS SSO 获取 HRMS token
+      let hrmsToken = token;
+      try {
+        const hrmsSsoRes = await fetch('/hrms/api/auth/sso-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ssoToken: token }),
+        });
+        const hrmsSsoData = await hrmsSsoRes.json();
+        if (hrmsSsoData.success && hrmsSsoData.data?.token) {
+          hrmsToken = hrmsSsoData.data.token;
+        }
+      } catch { /* ignore */ }
+
+      // 存储各系统 token
       localStorage.setItem('claw_scm_token', scmToken);
+      localStorage.setItem('claw_hrms_token', hrmsToken);
       setAuth({
         ...user,
         role: systemRoles?.scm || user.role,

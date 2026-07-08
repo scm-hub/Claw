@@ -10,8 +10,14 @@ const Login = lazy(() => import('./modules/portal/Login'));
 // 各模块首页（懒加载）
 const Workbench = lazy(() => import('./modules/portal/Workbench'));
 const Profile = lazy(() => import('./modules/portal/Profile'));
-const HRHome = lazy(() => import('./modules/hrms/HRHome'));
 const AIHome = lazy(() => import('./modules/ai/AIHome'));
+
+// HRMS 页面
+const HRDashboard = lazy(() => import('./modules/hrms/HRDashboard'));
+const HRAttendance = lazy(() => import('./modules/hrms/Attendance'));
+const HRLeaves = lazy(() => import('./modules/hrms/Leaves'));
+const HRSalary = lazy(() => import('./modules/hrms/Salary'));
+const HREmployees = lazy(() => import('./modules/hrms/Employees'));
 
 // SCM 模块布局壳（含 AppBar + 底部导航）
 const SCMMobileLayout = lazy(() => import('./modules/scm/MobileLayout'));
@@ -79,7 +85,11 @@ export default function App() {
             <Route path="settings" element={<SCMSettings />} />
           </Route>
 
-          <Route path="hrms/*" element={<HRHome />} />
+          <Route path="hrms" element={<HRDashboard />} />
+          <Route path="hrms/attendance" element={<HRAttendance />} />
+          <Route path="hrms/leaves" element={<HRLeaves />} />
+          <Route path="hrms/salary" element={<HRSalary />} />
+          <Route path="hrms/employees" element={<HREmployees />} />
           <Route path="ai/*" element={<AIHome />} />
         </Route>
 
