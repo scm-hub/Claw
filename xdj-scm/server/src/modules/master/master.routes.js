@@ -2061,4 +2061,44 @@ router.get('/stock-levels', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ---------- 监控仪表盘汇总 ----------
+router.get('/stock-monitor/summary', async (req, res, next) => {
+  try {
+    const [totalStandards, activeStandards, redAlerts, orangeAlerts, yellowAlerts, lastSnapshot] = await Promise.all([
+      prisma.stockStandard.count(),
+      prisma.stockStandard.count({ where: { status: 'ACTIVE' } }),
+      prisma.stockAlert.count({ where: { level: 'RED', status: { in: ['ACTIVE', 'PROCESSING'] } } }),
+      prisma.stockAlert.count({ where: { level: 'ORANGE', status: { in: ['ACTIVE', 'PROCESSING'] } } }),
+      prisma.stockAlert.count({ where: { level: 'YELLOW', status: { in: ['ACTIVE'] } } }),
+      prisma.stockLevel.findFirst({ orderBy: { snapshotDate: 'desc' }, select: { snapshotDate: true } }),
+    ]);
+
+    // 按仓库水位统计
+    const warehouseStats = await prisma.$queryRaw`
+      SELECT w.id, w.name, COUNT(sl.id) as total,
+        SUM(CASE WHEN sl.level = 'RED' THEN 1 ELSE 0 END) as red,
+        SUM(CASE WHEN sl.level = 'ORANGE' THEN 1 ELSE 0 END) as orange,
+        SUM(CASE WHEN sl.level = 'YELLOW' THEN 1 ELSE 0 END) as yellow,
+        SUM(CASE WHEN sl.level = 'GREEN' THEN 1 ELSE 0 END) as green
+      FROM stock_levels sl
+      INNER JOIN warehouses w ON w.id = sl.warehouseId
+      WHERE sl.snapshotDate = (SELECT MAX(snapshotDate) FROM stock_levels)
+      GROUP BY w.id, w.name
+    `;
+
+    res.json({
+      success: true,
+      data: {
+        totalStandards,
+        activeStandards,
+        redAlerts,
+        orangeAlerts,
+        yellowAlerts,
+        lastSnapshotDate: lastSnapshot?.snapshotDate || null,
+        warehouseStats,
+      },
+    });
+  } catch (err) { next(err); }
+});
+
 export default router;

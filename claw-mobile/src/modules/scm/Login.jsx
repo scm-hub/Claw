@@ -40,9 +40,22 @@ export default function Login() {
     setLoading(true);
     setError('');
     try {
-      const res = await api.post('/auth/mobile-login', form);
-      setAuth(res.data);
-      navigate('/');
+      // 使用 Portal 统一认证接口（支持工号/手机号/邮箱作为 identifier）
+      const loginRes = await api.post('/auth/login', {
+        email: form.username,
+        password: form.password,
+      });
+      const { token, user, permissions, systemRoles } = loginRes.data;
+      setAuth({
+        token,
+        user: {
+          ...user,
+          role: systemRoles?.scm || user.role,
+          permissions,
+          systemRoles,
+        },
+      });
+      navigate('/scm');
     } catch (e) {
       setError(e.message || '登录失败');
     }
@@ -62,15 +75,23 @@ export default function Login() {
       }
 
       // 2. 检查已有 token 是否仍然有效
-      const existingToken = localStorage.getItem('xdj_m_token');
-      const existingUser = JSON.parse(localStorage.getItem('xdj_m_user') || 'null');
+      const existingAuth = localStorage.getItem('claw_auth');
+      let existingToken = null;
+      let existingUser = null;
+      if (existingAuth) {
+        try {
+          const parsed = JSON.parse(existingAuth);
+          existingToken = parsed.token;
+          existingUser = parsed.user;
+        } catch {}
+      }
 
       if (existingToken && existingUser) {
         // 验证 token 是否仍然有效
         try {
           const checkRes = await api.get('/auth/me');
           if (checkRes.success) {
-            navigate('/');
+            navigate('/scm');
             return;
           }
         } catch {
