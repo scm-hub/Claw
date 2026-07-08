@@ -1,23 +1,56 @@
-import React from 'react';
-import { Box, Typography, List, ListItemButton, ListItemText, ListItemIcon, Avatar, Divider } from '@mui/material';
-import { Logout as LogoutIcon, Notifications as NotifyIcon, AccountTree as WorkflowIcon } from '@mui/icons-material';
+import React, { useState, useEffect } from 'react';
+import { Box, Typography, List, ListItemButton, ListItemText, ListItemIcon, Avatar, Divider, Switch, Alert } from '@mui/material';
+import { Logout, Notifications, AccountTree, Fingerprint, Info } from '@mui/icons-material';
 import useAuthStore from '../../store/authStore';
 import { useNavigate } from 'react-router-dom';
+import {
+  isBiometricEnabled,
+  enableBiometric,
+  disableBiometric,
+  checkBiometricAvailable,
+  isNativePlatform,
+} from '../../shared/biometric';
 
 export default function Profile() {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const navigate = useNavigate();
+  const [bioEnabled, setBioEnabled] = useState(false);
+  const [bioAvailable, setBioAvailable] = useState(false);
+  const [bioLoading, setBioLoading] = useState(false);
+  const [snackbar, setSnackbar] = useState('');
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
+  useEffect(() => {
+    isBiometricEnabled().then(setBioEnabled);
+    checkBiometricAvailable().then(setBioAvailable);
+  }, []);
+
+  const handleBioToggle = async (e) => {
+    const checked = e.target.checked;
+    setBioLoading(true);
+    try {
+      if (checked) {
+        const username = user?.employee?.employeeNo || user?.email || '';
+        if (!username) { setSnackbar('无法获取用户信息'); setBioLoading(false); return; }
+        await enableBiometric(username);
+        setBioEnabled(true);
+        setSnackbar('指纹/面容登录已启用');
+      } else {
+        await disableBiometric();
+        setBioEnabled(false);
+        setSnackbar('已关闭');
+      }
+    } catch (err) {
+      setSnackbar('操作失败: ' + err.message);
+    }
+    setBioLoading(false);
+    setTimeout(() => setSnackbar(''), 3000);
   };
 
   return (
     <Box sx={{ p: 2 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-        <Avatar sx={{ width: 56, height: 56, mr: 2 }}>
+        <Avatar sx={{ width: 56, height: 56, mr: 2, bgcolor: 'primary.main' }}>
           {(user?.employee?.name || user?.email || '?')[0]}
         </Avatar>
         <Box>
@@ -28,24 +61,36 @@ export default function Profile() {
         </Box>
       </Box>
 
-      <Divider />
+      {snackbar && <Alert severity={snackbar.includes('失败') ? 'error' : 'success'} sx={{ mb: 2 }}>{snackbar}</Alert>}
 
+      <Divider />
       <List>
-        <ListItemButton onClick={() => navigate('/workflow')}>
-          <ListItemIcon><WorkflowIcon /></ListItemIcon>
-          <ListItemText primary="工作流待办" secondary="审批 / 我的申请" />
+        <ListItemButton onClick={() => navigate('/scm/approval-center')}>
+          <ListItemIcon><AccountTree /></ListItemIcon>
+          <ListItemText primary="审批中心" secondary="待审批 / 已审批" />
         </ListItemButton>
-        <ListItemButton>
-          <ListItemIcon><NotifyIcon /></ListItemIcon>
-          <ListItemText primary="消息通知" secondary="系统消息和提醒" />
-        </ListItemButton>
+
+        {/* 生物认证开关 — 仅原生 App 可用 */}
+        {isNativePlatform() && bioAvailable && (
+          <ListItemButton onClick={() => {}} sx={{ cursor: 'default' }}>
+            <ListItemIcon><Fingerprint /></ListItemIcon>
+            <ListItemText primary="指纹/面容登录" secondary={bioLoading ? '设置中...' : (bioEnabled ? '已启用' : '已关闭')} />
+            <Switch checked={bioEnabled} onChange={handleBioToggle} disabled={bioLoading} />
+          </ListItemButton>
+        )}
+
+        {isNativePlatform() && !bioAvailable && (
+          <ListItemButton>
+            <ListItemIcon><Info /></ListItemIcon>
+            <ListItemText primary="指纹/面容登录" secondary="当前设备不支持或未设置" />
+          </ListItemButton>
+        )}
       </List>
 
       <Divider sx={{ mt: 2 }} />
-
       <List>
-        <ListItemButton onClick={handleLogout}>
-          <ListItemIcon><LogoutIcon color="error" /></ListItemIcon>
+        <ListItemButton onClick={() => { logout(); navigate('/mobile/login'); }}>
+          <ListItemIcon><Logout color="error" /></ListItemIcon>
           <ListItemText primary="退出登录" primaryTypographyProps={{ color: 'error' }} />
         </ListItemButton>
       </List>
