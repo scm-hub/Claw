@@ -6,7 +6,7 @@ async function clearBusinessData() {
   console.log('开始清空业务数据...\n');
   
   // 禁用外键检查
-  await prisma.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 0');
+  await prisma.$executeRaw`SET FOREIGN_KEY_CHECKS = 0`;
   
   try {
     // 使用正确的表名（snake_case）
@@ -76,7 +76,8 @@ async function clearBusinessData() {
     
     for (const tableName of tables) {
       try {
-        const result = await prisma.$executeRawUnsafe(`DELETE FROM \`${tableName}\``);
+        // 使用 Prisma 的 $executeRaw 模板标签（自动参数化，安全）
+        const result = await prisma.$executeRaw`DELETE FROM ${prisma.$raw(tableName)}`;
         console.log(`✓ 已清空 ${tableName}: ${result} 条记录`);
       } catch (e) {
         console.log(`⚠ ${tableName}: ${e.message}`);
@@ -87,7 +88,7 @@ async function clearBusinessData() {
     console.log('\n重置自增ID...');
     for (const tableName of tables) {
       try {
-        await prisma.$executeRawUnsafe(`ALTER TABLE \`${tableName}\` AUTO_INCREMENT = 1`);
+        await prisma.$executeRaw`ALTER TABLE ${prisma.$raw(tableName)} AUTO_INCREMENT = 1`;
       } catch (e) {
         // 忽略错误（有些表可能没有自增ID）
       }
@@ -104,7 +105,7 @@ async function clearBusinessData() {
     throw error;
   } finally {
     // 重新启用外键检查
-    await prisma.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 1');
+    await prisma.$executeRaw`SET FOREIGN_KEY_CHECKS = 1`;
     await prisma.$disconnect();
   }
 }

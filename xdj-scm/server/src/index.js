@@ -1,5 +1,7 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -27,7 +29,40 @@ io.on('connection', (socket) => {
 app.set('io', io);
 
 // 中间件
-app.use(cors({ origin: true, credentials: true }));
+// 安全 HTTP 头（SCM 有文件上传，放宽 CSP）
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    contentSecurityPolicy: false,
+  }),
+);
+
+// 全局限流（SCM 业务量大，放宽限制）
+app.use(
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 500,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: '请求过于频繁，请稍后再试' },
+  }),
+);
+
+app.use(
+  cors({
+    origin: [
+      'http://localhost:5174',
+      'http://localhost:5173',
+      'http://localhost:5175',
+      'http://localhost:5176',
+      'http://192.168.21.34:5174',
+      'http://192.168.21.34:5175',
+      'http://192.168.21.34:5176',
+      'http://111.17.201.197:5174',
+    ],
+    credentials: true,
+  }),
+);
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 

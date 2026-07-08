@@ -1,0 +1,94 @@
+# 部署流水线 — 手动触发或 tag 推送时部署
+
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: '部署环境'
+        required: true
+        type: choice
+        default: 'staging'
+        options:
+          - staging
+          - production
+      skip_tests:
+        description: '跳过测试'
+        required: false
+        type: boolean
+        default: false
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  # ============================================================
+  # 部署前检查
+  # ============================================================
+  pre-deploy:
+    name: Pre-Deploy Checks
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event.inputs.skip_tests != 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Security audit
+        run: npm audit --audit-level=high
+
+  # ============================================================
+  # 部署到目标服务器
+  # ============================================================
+  deploy:
+    name: Deploy to ${{ github.event.inputs.environment || 'production' }}
+    runs-on: ubuntu-latest
+    needs: pre-deploy
+    if: |
+      always() &&
+      (needs.pre-deploy.result == 'success' || needs.pre-deploy.result == 'skipped')
+    environment:
+      name: ${{ github.event.inputs.environment || 'production' }}
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          script: |
+            cd /opt/xdj-platform
+            git pull origin main
+
+            # 安装依赖
+            npm ci --production
+            for dir in portal/server hrms/server xdj-scm/server mdm/server ai-service/server workflow-engine/server; do
+              cd $dir && npm ci --production && cd -
+            done
+
+            # 数据库迁移
+            for dir in portal/server hrms/server xdj-scm/server mdm/server workflow-engine/server; do
+              cd $dir && npx prisma migrate deploy && cd -
+            done
+
+            # 构建前端
+            for dir in portal/client hrms/client xdj-scm/client xdj-scm/mobile mdm/client ai-service/client; do
+              cd $dir && npm ci && npm run build && cd -
+            done
+
+            # 重启服务
+            pm2 restart all
+
+            echo "✅ 部署完成 - $(date)"

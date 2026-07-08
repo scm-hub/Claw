@@ -1,5 +1,7 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { PrismaClient } from '@prisma/client';
@@ -31,7 +33,31 @@ export const prisma = new PrismaClient();
 // 信任代理（Vite dev proxy），使 req.ip 正确解析 x-forwarded-for
 app.set('trust proxy', true);
 
-app.use(cors());
+// 安全 HTTP 头
+app.use(helmet());
+
+// 全局限流
+app.use(
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 200,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: '请求过于频繁，请稍后再试' },
+  }),
+);
+
+app.use(
+  cors({
+    origin: [
+      'http://localhost:5174',
+      'http://localhost:5173',
+      'http://192.168.21.34:5174',
+      'http://111.17.201.197:5174',
+    ],
+    credentials: true,
+  }),
+);
 app.use(express.json());
 
 // 操作日志上报 — 将写操作日志异步上报到 Portal 统一日志中心

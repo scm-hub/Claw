@@ -8,7 +8,18 @@ import { syncManagerRole } from '../services/employee.service.js';
 
 const prisma = new PrismaClient();
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (allowed.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`不支持的文件类型: ${file.mimetype}`), false);
+    }
+  },
+});
 
 // 获取部门列表（树形结构）
 router.get('/', authenticate, async (req, res, next) => {

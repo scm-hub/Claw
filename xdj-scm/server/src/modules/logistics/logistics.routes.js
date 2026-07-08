@@ -23,10 +23,29 @@ const licenseUpload = multer({
     },
   }),
   limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
+    if (allowed.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`不支持的文件类型: ${file.mimetype}`), false);
+    }
+  },
 });
 
 // OCR 用的内存存储（不落盘，识别完即丢弃）
-const ocrUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const ocrUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (allowed.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`OCR 仅支持图片格式: ${file.mimetype}`), false);
+    }
+  },
+});
 
 // ============================================================
 // 营业执照 OCR 识别

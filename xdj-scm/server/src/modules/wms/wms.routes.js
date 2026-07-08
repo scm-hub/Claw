@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { Prisma } from '@prisma/client';
 import { authenticate } from '../../middleware/auth.js';
 import { authorize, ROLES } from '../../middleware/rbac.js';
 import prisma from '../../shared/prisma.js';
@@ -198,22 +199,26 @@ router.get('/cost-price/history', async (req, res, next) => {
     if (endDate) where.calculatedAt = { ...where.calculatedAt, lte: new Date(endDate + 'T23:59:59') };
 
     if (latestOnly === 'true') {
-      // 每个物料+级��取最新一条记录
-      const rows = await prisma.$queryRawUnsafe(`
+      // 每个物料+等级取最新一条记录（使用 $queryRaw 参数化查询，防 SQL 注入）
+      const materialIdFilter = materialId ? Prisma.sql`WHERE materialId = ${materialId}` : Prisma.sql``;
+      const rows = await prisma.$queryRaw`
         SELECT cp.* FROM cost_price_records cp
         INNER JOIN (
           SELECT materialId, grade_id, MAX(calculatedAt) AS maxDate
           FROM cost_price_records
-          ${materialId ? 'WHERE materialId = ?' : ''}
+          ${materialIdFilter}
           GROUP BY materialId, grade_id
         ) latest ON cp.materialId = latest.materialId AND (cp.grade_id = latest.grade_id OR (cp.grade_id IS NULL AND latest.grade_id IS NULL)) AND cp.calculatedAt = latest.maxDate
         ORDER BY cp.calculatedAt DESC
-        LIMIT ? OFFSET ?
-      `, ...(materialId ? [materialId] : []), Number(pageSize), (Number(page) - 1) * Number(pageSize));
+        LIMIT ${Number(pageSize)} OFFSET ${(Number(page) - 1) * Number(pageSize)}
+      `;
 
-      const countRows = materialId
-        ? await prisma.$queryRawUnsafe(`SELECT COUNT(DISTINCT CONCAT(materialId, COALESCE(grade_id, ''))) AS cnt FROM cost_price_records WHERE materialId = ?`, materialId)
-        : await prisma.$queryRawUnsafe(`SELECT COUNT(DISTINCT CONCAT(materialId, COALESCE(grade_id, ''))) AS cnt FROM cost_price_records`);
+      let countRows;
+      if (materialId) {
+        countRows = await prisma.$queryRaw`SELECT COUNT(DISTINCT CONCAT(materialId, COALESCE(grade_id, ''))) AS cnt FROM cost_price_records WHERE materialId = ${materialId}`;
+      } else {
+        countRows = await prisma.$queryRaw`SELECT COUNT(DISTINCT CONCAT(materialId, COALESCE(grade_id, ''))) AS cnt FROM cost_price_records`;
+      }
       const total = Number(countRows[0]?.cnt || 0);
 
       return res.json({ success: true, data: { list: rows, total, page: Number(page), pageSize: Number(pageSize) } });

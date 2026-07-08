@@ -1,5 +1,7 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import authRoutes from './routes/auth.js';
 import systemRoutes from './routes/systems.js';
@@ -19,8 +21,23 @@ const app = express();
 app.set('trust proxy', true);
 
 // 中间件
-app.use(cors({
-  origin: [
+// 安全 HTTP 头
+app.use(helmet());
+
+// 全局限流（登录等敏感接口在路由层进一步限制）
+app.use(
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 200,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: '请求过于频繁，请稍后再试' },
+  }),
+);
+
+app.use(
+  cors({
+    origin: [
     process.env.PORTAL_CLIENT_URL || 'http://localhost:5174',
     'http://localhost:5173',
     'http://localhost:5175',

@@ -1,5 +1,7 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import workflowRoutes from './routes/workflow.js';
 import prisma from './prisma.js';
@@ -12,17 +14,33 @@ const app = express();
 app.set('trust proxy', true);
 
 // 中间件
-app.use(cors({
-  origin: [
-    'http://localhost:5174',
-    'http://localhost:5173',
-    'http://localhost:4011',
-    'http://192.168.21.34:5174',
-    'http://192.168.21.34:5173',
-    'http://111.17.201.197:5174',
-  ],
-  credentials: true,
-}));
+// 安全 HTTP 头
+app.use(helmet());
+
+// 全局限流
+app.use(
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 200,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: '请求过于频繁，请稍后再试' },
+  }),
+);
+
+app.use(
+  cors({
+    origin: [
+      'http://localhost:5174',
+      'http://localhost:5173',
+      'http://localhost:4011',
+      'http://192.168.21.34:5174',
+      'http://192.168.21.34:5173',
+      'http://111.17.201.197:5174',
+    ],
+    credentials: true,
+  }),
+);
 app.use(express.json({ limit: '2mb' }));
 
 // 健康检查

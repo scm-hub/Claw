@@ -1,0 +1,2 @@
+# 在 commit message 创建时校验格式
+npx --no -- commitlint --edit $1

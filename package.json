@@ -4,14 +4,50 @@
   "type": "module",
   "description": "鲜当家统一网关服务",
   "scripts": {
-    "gateway": "node gateway.js"
+    "gateway": "node gateway.js",
+    "test": "node run-tests.mjs",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "stress": "node tests/stress/run-all.mjs",
+    "stress:quick": "node tests/stress/run-all.mjs --quick",
+    "stress:login": "k6 run tests/stress/login-stress.js",
+    "stress:mixed": "k6 run tests/stress/api-mixed-load.js",
+    "stress:spike": "k6 run tests/stress/spike-test.js",
+    "stress:autocannon": "node tests/stress/autocannon-quick.mjs",
+    "prepare": "husky",
+    "lint": "eslint . --max-warnings 50",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"**/*.{js,jsx,json,css,md}\" --ignore-path .gitignore",
+    "format:check": "prettier --check \"**/*.{js,jsx,json,css,md}\" --ignore-path .gitignore"
+  },
+  "lint-staged": {
+    "*.{js,jsx}": [
+      "eslint --fix --max-warnings 10",
+      "prettier --write"
+    ],
+    "*.{json,css,md}": [
+      "prettier --write"
+    ]
   },
   "dependencies": {
     "@aparajita/capacitor-biometric-auth": "^10.0.0",
     "express": "^4.21.2",
+    "express-rate-limit": "^8.5.2",
+    "helmet": "^8.2.0",
     "http-proxy-middleware": "^3.0.5"
   },
   "devDependencies": {
-    "prisma": "^6.3.0"
+    "@commitlint/cli": "^21.2.0",
+    "@commitlint/config-conventional": "^21.2.0",
+    "@eslint/js": "^10.0.1",
+    "@vitest/coverage-v8": "^4.1.10",
+    "autocannon": "^8.0.0",
+    "eslint": "^10.6.0",
+    "globals": "^17.7.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "prettier": "^3.9.4",
+    "prisma": "^6.3.0",
+    "vitest": "^4.1.10"
   }
 }

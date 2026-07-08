@@ -9,7 +9,18 @@ import { authorize } from '../middleware/rbac.js';
 import { getDepartmentFilter } from '../middleware/departmentScope.js';
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
+    if (allowed.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`不支持的文件类型: ${file.mimetype}`), false);
+    }
+  },
+});
 
 // 文件上传配置（照片 + 附件）
 const __filename = fileURLToPath(import.meta.url);

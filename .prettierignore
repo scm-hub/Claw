@@ -1,0 +1,9 @@
+node_modules
+dist
+uploads
+.vite
+.snapshots
+.workbuddy
+*.md
+pnpm-lock.yaml
+package-lock.json

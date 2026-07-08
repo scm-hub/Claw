@@ -13,6 +13,8 @@
  */
 
 import express from 'express';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -20,6 +22,21 @@ import fs from 'fs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
+
+// ── 安全中间件 ──────────────────────────────────────────────────────────────
+// 安全 HTTP 头
+app.use(helmet({ contentSecurityPolicy: false }));
+
+// 全局限流（网关层，所有请求的总入口）
+app.use(
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 1000,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: '请求过于频繁，请稍后再试' },
+  }),
+);
 
 // ── 子系统配置 ────────────────────────────────────────────────────────────
 const SUBSYSTEMS = [
