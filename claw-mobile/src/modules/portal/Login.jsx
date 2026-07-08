@@ -35,17 +35,24 @@ export default function Login() {
       }
       const { token, user, permissions, systemRoles } = loginData.data;
 
-      // 2. 通过 SSO 在 SCM 后端注册/同步用户（确保 SCM 认识这个 token）
+      // 2. 通过 SCM SSO 获取 SCM token（SCM API 需要自己的 token）
+      let scmToken = token;
       try {
-        await fetch(`${API_BASE}/auth/sso-login`, {
+        const ssoRes = await fetch('/mobile/api/auth/sso-login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ssoToken: token }),
         });
+        const ssoData = await ssoRes.json();
+        if (ssoData.success && ssoData.data?.token) {
+          scmToken = ssoData.data.token;
+        }
       } catch {
-        // SSO 同步失败不阻塞登录
+        // SSO 失败不阻塞登录
       }
 
+      // 存储时同时保存 Portal token 和 SCM token
+      localStorage.setItem('claw_scm_token', scmToken);
       setAuth({
         ...user,
         role: systemRoles?.scm || user.role,

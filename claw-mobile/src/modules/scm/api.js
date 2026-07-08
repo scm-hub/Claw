@@ -17,11 +17,14 @@ function getBaseUrl() {
 const BASE_URL = getBaseUrl();
 
 async function request(url, options = {}) {
-  let token = null;
-  try {
-    const auth = localStorage.getItem('claw_auth');
-    if (auth) token = JSON.parse(auth).token;
-  } catch {}
+  // 优先使用 SCM token（由 SSO 登录获取），fallback 到 Portal token
+  let token = localStorage.getItem('claw_scm_token') || null;
+  if (!token) {
+    try {
+      const auth = localStorage.getItem('claw_auth');
+      if (auth) token = JSON.parse(auth).token;
+    } catch {}
+  }
 
   const headers = {
     'Content-Type': 'application/json',
@@ -32,10 +35,10 @@ async function request(url, options = {}) {
   const res = await fetch(`${BASE_URL}${url}`, { ...options, headers });
 
   if (res.status === 401) {
-    const isLoginRequest = url.includes('/auth/mobile-login') || url.includes('/auth/login');
+    const isLoginRequest = url.includes('/auth/mobile-login') || url.includes('/auth/login') || url.includes('/auth/sso-login');
     if (!isLoginRequest) {
+      localStorage.removeItem('claw_scm_token');
       localStorage.removeItem('claw_auth');
-      // 使用 React Router 的导航而非 window.location，避免跳出 SPA
       window.location.href = '/mobile/login';
       throw new Error('认证已过期');
     }
