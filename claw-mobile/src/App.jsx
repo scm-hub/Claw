@@ -10,9 +10,24 @@ const Login = lazy(() => import('./modules/portal/Login'));
 // 各模块首页（懒加载）
 const Workbench = lazy(() => import('./modules/portal/Workbench'));
 const Profile = lazy(() => import('./modules/portal/Profile'));
-const SCMHome = lazy(() => import('./modules/scm/SCMHome'));
 const HRHome = lazy(() => import('./modules/hrms/HRHome'));
 const AIHome = lazy(() => import('./modules/ai/AIHome'));
+
+// SCM 模块布局壳（含 AppBar + 底部导航）
+const SCMMobileLayout = lazy(() => import('./modules/scm/MobileLayout'));
+
+// SCM 页面（懒加载）
+const SCMDashboard = lazy(() => import('./modules/scm/Dashboard'));
+const SCMInventory = lazy(() => import('./modules/scm/Inventory'));
+const SCMSalesOrders = lazy(() => import('./modules/scm/SalesOrders'));
+const SCMSalesPlans = lazy(() => import('./modules/scm/SalesPlans'));
+const SCMPurchaseOrders = lazy(() => import('./modules/scm/PurchaseOrders'));
+const SCMReceivables = lazy(() => import('./modules/scm/Receivables'));
+const SCMPayables = lazy(() => import('./modules/scm/Payables'));
+const SCMScanInbound = lazy(() => import('./modules/scm/ScanInbound'));
+const SCMStockTake = lazy(() => import('./modules/scm/StockTake'));
+const SCMApprovalCenter = lazy(() => import('./modules/scm/ApprovalCenter'));
+const SCMSettings = lazy(() => import('./modules/scm/Settings'));
 
 function Loading() {
   return (
@@ -46,10 +61,26 @@ export default function App() {
         >
           <Route index element={<Navigate to="/workbench" replace />} />
           <Route path="workbench" element={<Workbench />} />
-          <Route path="scm/*" element={<SCMHome />} />
+          <Route path="profile" element={<Profile />} />
+
+          {/* SCM 模块（使用 SCM 自带的 MobileLayout 布局壳） */}
+          <Route path="scm" element={<SCMMobileLayout />}>
+            <Route index element={<SCMDashboard />} />
+            <Route path="dashboard" element={<SCMDashboard />} />
+            <Route path="inventory" element={<SCMInventory />} />
+            <Route path="sales-orders" element={<SCMSalesOrders />} />
+            <Route path="sales-plans" element={<SCMSalesPlans />} />
+            <Route path="purchase-orders" element={<SCMPurchaseOrders />} />
+            <Route path="receivables" element={<SCMReceivables />} />
+            <Route path="payables" element={<SCMPayables />} />
+            <Route path="scan-inbound" element={<SCMScanInbound />} />
+            <Route path="stock-take" element={<SCMStockTake />} />
+            <Route path="approval-center" element={<SCMApprovalCenter />} />
+            <Route path="settings" element={<SCMSettings />} />
+          </Route>
+
           <Route path="hrms/*" element={<HRHome />} />
           <Route path="ai/*" element={<AIHome />} />
-          <Route path="profile" element={<Profile />} />
         </Route>
 
         {/* 404 */}

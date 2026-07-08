@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">鲜当家综合管理</string>
+    <string name="title_activity_main">鲜当家综合管理</string>
+    <string name="package_name">com.xdj.claw</string>
+    <string name="custom_url_scheme">com.xdj.claw</string>
+</resources>

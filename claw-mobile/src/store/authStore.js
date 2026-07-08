@@ -23,41 +23,53 @@ const useAuthStore = create((set, get) => ({
   user: loadAuth()?.user || null,
   token: loadAuth()?.token || null,
   isAuthenticated: !!loadAuth()?.token,
+  layoutConfig: null, // SCM 兼容
 
-  setAuth: (user, token) => {
-    const data = { user, token };
+  // 支持两种调用方式：
+  //   setAuth(user, token)  — portal 方式
+  //   setAuth({ token, user })  — SCM 方式
+  setAuth: (userOrData, token) => {
+    let data;
+    if (token !== undefined) {
+      // setAuth(user, token)
+      data = { user: userOrData, token };
+    } else if (userOrData && typeof userOrData === 'object') {
+      // setAuth({ token, user })
+      data = userOrData;
+    } else {
+      return;
+    }
     saveAuth(data);
-    set({ user, token, isAuthenticated: true });
+    set({ user: data.user, token: data.token, isAuthenticated: true });
+  },
+
+  clearAuth: () => {
+    saveAuth(null);
+    set({ user: null, token: null, isAuthenticated: false, layoutConfig: null });
   },
 
   logout: () => {
     saveAuth(null);
-    set({ user: null, token: null, isAuthenticated: false });
+    set({ user: null, token: null, isAuthenticated: false, layoutConfig: null });
   },
 
-  /**
-   * 获取用户在子系统中的角色
-   * @param {string} system - 'hrms' | 'scm' | 'mdm' | 'ai' | 'workflow'
-   * @returns {string} 角色值
-   */
+  // SCM 兼容
+  getRole: () => get().user?.role || null,
+  getDisplayName: () => {
+    const user = get().user;
+    return user?.employee?.name || user?.username || user?.email || '用户';
+  },
+
   getSystemRole: (system) => {
     const user = get().user;
     return user?.systemRoles?.[system] || user?.role || 'EMPLOYEE';
   },
 
-  /**
-   * 获取模块权限列表
-   * @param {string} system - 子系统标识
-   * @returns {string[]}
-   */
   getPermissions: (system) => {
     const user = get().user;
     return user?.permissions?.[system] || [];
   },
 
-  /**
-   * 检查是否有某模块权限
-   */
   hasModule: (system, moduleCode) => {
     const user = get().user;
     if (!user) return false;
@@ -65,6 +77,11 @@ const useAuthStore = create((set, get) => ({
     const perms = get().getPermissions(system);
     return perms.includes(moduleCode);
   },
+
+  // SCM 兼容：获取布局配置
+  getLayoutConfig: () => get().layoutConfig,
+  fetchLayoutConfig: async () => {},
 }));
 
+export { useAuthStore };
 export default useAuthStore;
