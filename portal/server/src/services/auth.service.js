@@ -5,6 +5,46 @@ import { hrmsLogin } from './hrms-client.js';
 const SSO_JWT_SECRET = process.env.SSO_JWT_SECRET || 'xdj-portal-sso-secret-2026';
 const SSO_JWT_EXPIRES_IN = process.env.SSO_JWT_EXPIRES_IN || '7d';
 
+const HRMS_ROLE_PRIORITY = {
+  SUPER_ADMIN: 4,
+  HR_ADMIN: 3,
+  MANAGER: 2,
+  EMPLOYEE: 1,
+};
+
+const SCM_ROLE_PRIORITY = {
+  SUPER_ADMIN: 10,
+  FINANCE_MANAGER: 9,
+  SALES_MANAGER: 8,
+  PURCHASE_MANAGER: 7,
+  WAREHOUSE_MANAGER: 6,
+  QUALITY_STAFF: 5,
+  LOGISTICS_STAFF: 4,
+  CONTRACT_MANAGER: 3,
+  HR: 2,
+  WAREHOUSE_STAFF: 1,
+};
+
+/**
+ * 从多个角色映射中选出优先级最高的角色
+ * @param {string[]} roles - 角色编码列表
+ * @param {object} priorityMap - 优先级映射表
+ * @returns {string|null} 最高优先级角色，无有效角色时返回 null
+ */
+function pickHighestRole(roles, priorityMap) {
+  let best = null;
+  let bestScore = 0;
+  for (const role of roles) {
+    if (!role) continue;
+    const score = priorityMap[role] || 0;
+    if (score > bestScore) {
+      bestScore = score;
+      best = role;
+    }
+  }
+  return best;
+}
+
 function signToken(payload) {
   return jwt.sign(payload, SSO_JWT_SECRET, { expiresIn: SSO_JWT_EXPIRES_IN });
 }
@@ -25,7 +65,18 @@ function deriveScmRole(scmModules) {
   if (!scmModules || scmModules.length === 0) return 'WAREHOUSE_STAFF';
 
   // 拥有全部 SCM 模块 → 超级管理员
-  const allScmModules = ['master', 'purchase', 'sales', 'warehouse', 'traceability', 'finance', 'cost', 'logistics', 'other', 'settings'];
+  const allScmModules = [
+    'master',
+    'purchase',
+    'sales',
+    'warehouse',
+    'traceability',
+    'finance',
+    'cost',
+    'logistics',
+    'other',
+    'settings',
+  ];
   if (allScmModules.every((m) => hasModuleInPerms(scmModules, m))) {
     return 'SUPER_ADMIN';
   }
@@ -57,13 +108,44 @@ function deriveHrmsRole(hrmsModules) {
   if (!hrmsModules || hrmsModules.length === 0) return 'EMPLOYEE';
 
   // 拥有全部 HRMS 模块 → 超级管理员
-  const allHrmsModules = ['dashboard', 'departments', 'positions', 'employees', 'onboarding', 'attendance', 'leave', 'payroll', 'contracts', 'performance', 'training', 'recruitment', 'reports', 'settings'];
+  const allHrmsModules = [
+    'dashboard',
+    'departments',
+    'positions',
+    'employees',
+    'onboarding',
+    'attendance',
+    'leave',
+    'payroll',
+    'contracts',
+    'performance',
+    'training',
+    'recruitment',
+    'reports',
+    'settings',
+  ];
   if (allHrmsModules.every((m) => hasModuleInPerms(hrmsModules, m))) {
     return 'SUPER_ADMIN';
   }
 
   // 拥有 settings 或 payroll 等高级管理模块 → HR 管理员
-  if (['settings', 'payroll', 'employees', 'departments', 'attendance', 'leave', 'recruitment', 'training', 'performance', 'contracts', 'positions', 'onboarding', 'reports'].some((m) => hasModuleInPerms(hrmsModules, m))) {
+  if (
+    [
+      'settings',
+      'payroll',
+      'employees',
+      'departments',
+      'attendance',
+      'leave',
+      'recruitment',
+      'training',
+      'performance',
+      'contracts',
+      'positions',
+      'onboarding',
+      'reports',
+    ].some((m) => hasModuleInPerms(hrmsModules, m))
+  ) {
     return 'HR_ADMIN';
   }
 
@@ -99,11 +181,15 @@ async function getUserPermissions(userEmail) {
     return { permissions: {}, systemRoles: {} };
   }
 
-  // 聚合所有角色的模块权限
+  // 聚合所有角色的模块权限，同时收集各子系统显式角色映射
   const permMap = {}; // { scm: Set(master, purchase), hrms: Set(employees) }
+  const explicitRoles = { scm: new Set(), hrms: new Set(), mdm: new Set() };
 
   for (const ur of userRoles) {
     const role = ur.role;
+    if (role.scmRole) explicitRoles.scm.add(role.scmRole);
+    if (role.hrmsRole) explicitRoles.hrms.add(role.hrmsRole);
+    if (role.mdmRole) explicitRoles.mdm.add(role.mdmRole);
     for (const perm of role.permissions) {
       if (!permMap[perm.systemCode]) permMap[perm.systemCode] = new Set();
       permMap[perm.systemCode].add(perm.moduleCode);
@@ -116,11 +202,18 @@ async function getUserPermissions(userEmail) {
     permissions[sys] = Array.from(mods);
   }
 
-  // 自动推导各子系统的内部角色（始终推导，即使权限为空也设最小角色）
+  // 优先使用 Portal 角色上的显式子系统角色映射；没有显式映射时再按模块权限推导
   const systemRoles = {};
-  systemRoles.scm = deriveScmRole(permissions.scm || []);
-  systemRoles.hrms = deriveHrmsRole(permissions.hrms || []);
-  systemRoles.mdm = deriveMdmRole(permissions.mdm || []);
+  systemRoles.scm =
+    pickHighestRole(Array.from(explicitRoles.scm), SCM_ROLE_PRIORITY) ||
+    deriveScmRole(permissions.scm || []);
+  systemRoles.hrms =
+    pickHighestRole(Array.from(explicitRoles.hrms), HRMS_ROLE_PRIORITY) ||
+    deriveHrmsRole(permissions.hrms || []);
+  systemRoles.mdm =
+    explicitRoles.mdm.size > 0
+      ? Array.from(explicitRoles.mdm)[0]
+      : deriveMdmRole(permissions.mdm || []);
 
   return { permissions, systemRoles };
 }
@@ -148,18 +241,17 @@ export async function login(email, password, clientInfo = {}) {
   // 获取用户的角色权限
   const { permissions, systemRoles } = await getUserPermissions(userEmail);
 
-  // 安全网：如果 HRMS 原始角色是 SUPER_ADMIN，始终保留，防止 SSO 降级
-  if (user.role === 'SUPER_ADMIN') {
-    systemRoles.hrms = 'SUPER_ADMIN';
-  }
-
   // 确定可访问的系统列表
   let accessibleSystems = [];
   let needCreateAccess = false;
 
   if (accessRecords.length === 0) {
     accessibleSystems = allSystems.map((s) => ({
-      code: s.code, name: s.name, url: s.url, icon: s.icon, color: s.color,
+      code: s.code,
+      name: s.name,
+      url: s.url,
+      icon: s.icon,
+      color: s.color,
     }));
     needCreateAccess = true;
   } else {
@@ -169,7 +261,11 @@ export async function login(email, password, clientInfo = {}) {
         return record ? record : true;
       })
       .map((s) => ({
-        code: s.code, name: s.name, url: s.url, icon: s.icon, color: s.color,
+        code: s.code,
+        name: s.name,
+        url: s.url,
+        icon: s.icon,
+        color: s.color,
       }));
   }
 
@@ -278,7 +374,11 @@ export async function verifyToken(token) {
         return record ? record : true;
       })
       .map((s) => ({
-        code: s.code, name: s.name, url: s.url, icon: s.icon, color: s.color,
+        code: s.code,
+        name: s.name,
+        url: s.url,
+        icon: s.icon,
+        color: s.color,
       }));
 
     // 重新获取最新权限
