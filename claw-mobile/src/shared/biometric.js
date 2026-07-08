@@ -1,7 +1,7 @@
 /**
  * 生物认证（指纹/面容）服务
  * 基于 @aparajita/capacitor-biometric-auth
- * 在 Web 环境下自动降级为不可用
+ * Web 环境自动降级
  */
 import { Capacitor } from '@capacitor/core';
 import { BiometricAuth } from '@aparajita/capacitor-biometric-auth';
@@ -10,44 +10,48 @@ import { Preferences } from '@capacitor/preferences';
 const BIO_ENABLED_KEY = 'xdj_biometric_enabled';
 const BIO_USERNAME_KEY = 'xdj_biometric_username';
 
-/**
- * 检测当前是否原生平台
- */
 export function isNativePlatform() {
   return Capacitor.isNativePlatform();
 }
 
 /**
- * 检测设备是否支持生物认证
+ * 检测生物认证是否可用
+ * 直接尝试弱认证，能弹出指纹框即视为可用
  */
 export async function checkBiometricAvailable() {
   if (!isNativePlatform()) return false;
   try {
+    // 先调用 checkAvailability
     const result = await BiometricAuth.checkAvailability();
-    console.log('[Biometric] checkAvailability result:', JSON.stringify(result));
-    return result.isAvailable === true;
+    console.log('[Biometric] checkAvailability:', JSON.stringify(result));
+    if (result.isAvailable) return true;
+
+    // 某些设备返回 isAvailable=false 但实际可用，直接尝试认证
+    try {
+      await BiometricAuth.authenticate({
+        reason: '验证生物认证可用性',
+        cancelTitle: '取消',
+        android: { confirmationRequired: false },
+      });
+      return true;
+    } catch {
+      return false;
+    }
   } catch (e) {
-    console.error('[Biometric] checkAvailability error:', e);
+    console.warn('[Biometric] checkAvailability error:', e);
     return false;
   }
 }
 
-/**
- * 检查是否已启用生物认证
- */
 export async function isBiometricEnabled() {
   try {
     const { value } = await Preferences.get({ key: BIO_ENABLED_KEY });
     return value === 'true';
   } catch {
-    // Web 降级 — 使用 localStorage
     return localStorage.getItem(BIO_ENABLED_KEY) === 'true';
   }
 }
 
-/**
- * 获取绑定的用户名
- */
 export async function getBiometricUsername() {
   try {
     const { value } = await Preferences.get({ key: BIO_USERNAME_KEY });
@@ -57,24 +61,17 @@ export async function getBiometricUsername() {
   }
 }
 
-/**
- * 启用生物认证 — 绑定当前用户名
- */
 export async function enableBiometric(username) {
   try {
     await Preferences.set({ key: BIO_ENABLED_KEY, value: 'true' });
     await Preferences.set({ key: BIO_USERNAME_KEY, value: username });
   } catch {
-    // Web 降级
     localStorage.setItem(BIO_ENABLED_KEY, 'true');
     localStorage.setItem(BIO_USERNAME_KEY, username);
   }
   return true;
 }
 
-/**
- * 禁用生物认证 — 清除绑定
- */
 export async function disableBiometric() {
   try {
     await Preferences.remove({ key: BIO_ENABLED_KEY });
@@ -86,29 +83,20 @@ export async function disableBiometric() {
   return true;
 }
 
-/**
- * 执行生物认证 — 弹出指纹/面容验证
- * @returns {boolean} 认证是否成功
- */
 export async function authenticateWithBiometric() {
   if (!isNativePlatform()) return false;
   try {
-    const available = await checkBiometricAvailable();
-    if (!available) return false;
-
     const result = await BiometricAuth.authenticate({
-      reason: '请验证您的身份以快速登录鲜当家SCM',
+      reason: '请验证身份以快速登录鲜当家',
       cancelTitle: '取消',
-      unlockTitle: '验证身份',
       fallbackTitle: '使用密码',
       android: {
         subtitle: '使用指纹或面容解锁',
         confirmationRequired: false,
       },
     });
-    return result.isAuthenticated || true;
-  } catch (e) {
-    console.warn('Biometric auth failed:', e);
+    return result.isAuthenticated !== false;
+  } catch {
     return false;
   }
 }
