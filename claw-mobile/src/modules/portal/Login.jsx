@@ -26,13 +26,16 @@ export default function Login() {
     setLoading(true);
     setError('');
     try {
+      const url = `${API_BASE}/auth/login`;
+      console.log('[Login] 请求地址:', url);
       // Portal 统一认证接口（用 email 字段传递账号）
-      const res = await fetch(`${API_BASE}/auth/login`, {
+      const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: account, password }),
       });
       const data = await res.json();
+      console.log('[Login] 响应:', data.success);
       if (!data.success) {
         throw new Error(data.message || '登录失败');
       }
@@ -45,7 +48,12 @@ export default function Login() {
       }, token);
       navigate('/workbench', { replace: true });
     } catch (err) {
-      setError(err.message || '登录失败');
+      console.error('[Login] 错误:', err.message, err);
+      if (err.message === 'Failed to fetch' || err.name === 'TypeError') {
+        setError('无法连接服务器，请检查手机网络（需要能访问 111.17.201.197:5174）');
+      } else {
+        setError(err.message || '登录失败');
+      }
     } finally {
       setLoading(false);
     }
