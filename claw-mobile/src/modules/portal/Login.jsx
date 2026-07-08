@@ -23,20 +23,29 @@ export default function Login() {
     setLoading(true);
     setError('');
     try {
-      const url = `${API_BASE}/auth/login`;
-      console.log('[Login] 请求地址:', url);
-      // Portal 统一认证接口（用 email 字段传递账号）
-      const res = await fetch(url, {
+      // 1. Portal 统一认证
+      const loginRes = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: account, password }),
       });
-      const data = await res.json();
-      console.log('[Login] 响应:', data.success);
-      if (!data.success) {
-        throw new Error(data.message || '登录失败');
+      const loginData = await loginRes.json();
+      if (!loginData.success) {
+        throw new Error(loginData.message || '登录失败');
       }
-      const { token, user, permissions, systemRoles } = data.data;
+      const { token, user, permissions, systemRoles } = loginData.data;
+
+      // 2. 通过 SSO 在 SCM 后端注册/同步用户（确保 SCM 认识这个 token）
+      try {
+        await fetch(`${API_BASE}/auth/sso-login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ssoToken: token }),
+        });
+      } catch {
+        // SSO 同步失败不阻塞登录
+      }
+
       setAuth({
         ...user,
         role: systemRoles?.scm || user.role,
@@ -45,9 +54,8 @@ export default function Login() {
       }, token);
       navigate('/workbench', { replace: true });
     } catch (err) {
-      console.error('[Login] 错误:', err.message, err);
       if (err.message === 'Failed to fetch' || err.name === 'TypeError') {
-        setError('无法连接服务器，请检查手机网络（需要能访问 111.17.201.197:5174）');
+        setError('无法连接服务器，请检查手机网络');
       } else {
         setError(err.message || '登录失败');
       }

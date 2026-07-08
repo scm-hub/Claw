@@ -6,8 +6,10 @@ import { Capacitor } from '@capacitor/core';
  * - Web 开发：走 Vite proxy → Gateway
  */
 function getBaseUrl() {
+  // server.url 模式下，页面从 http://111.17.201.197:5174/mobile/ 加载
+  // 使用 /mobile/api 前缀，Gateway 代理到 SCM 后端 4003
   if (Capacitor.isNativePlatform()) {
-    return 'http://111.17.201.197:5174/api';
+    return '/mobile/api';
   }
   return '/api';
 }
