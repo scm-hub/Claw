@@ -652,7 +652,7 @@ export default function ContractList() {
       }
       setPendingScrollId(null);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line
   }, [loading, contracts]);
 
   // 加载员工列表（用于表单下拉）
