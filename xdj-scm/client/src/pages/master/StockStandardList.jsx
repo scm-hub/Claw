@@ -167,6 +167,32 @@ export default function StockStandardList() {
     }
   };
 
+  // 手动重算所有标准
+  const [recalcing, setRecalcing] = useState(false);
+  const handleRecalculate = async () => {
+    if (!confirm('将重新计算所有启用标准的安全库存，继续吗？')) return;
+    setRecalcing(true);
+    try {
+      const res = await api.post('/master/stock-standards/recalculate');
+      setSnack({ open: true, msg: res.data?.message || '重算完成', sev: 'success' });
+      loadList();
+    } catch (err) {
+      setSnack({ open: true, msg: '重算失败', sev: 'error' });
+    }
+    setRecalcing(false);
+  };
+
+  // 单条重算
+  const handleRecalcOne = async (id) => {
+    try {
+      await api.post(`/master/stock-standards/${id}/recalculate`);
+      setSnack({ open: true, msg: '重算完成', sev: 'success' });
+      loadList();
+    } catch (err) {
+      setSnack({ open: true, msg: '重算失败', sev: 'error' });
+    }
+  };
+
   // 选物料时自动带出采购提前期和最大存储天数
   const handleMaterialChange = (matId) => {
     const mat = materials.find(m => m.id === matId);
@@ -210,6 +236,7 @@ export default function StockStandardList() {
       <Stack direction="row" spacing={1} sx={{ mb: 2 }} flexWrap="wrap" useFlexGap>
         <Button variant="contained" startIcon={<Add />} onClick={handleAdd}>新增标准</Button>
         <Button variant="outlined" startIcon={<SettingsSuggest />} onClick={() => setInitDialog({ open: true, seasonConfigId: seasonConfigs[0]?.id || '' })}>批量初始化</Button>
+        <Button variant="contained" color="warning" startIcon={<Tune />} onClick={handleRecalculate} disabled={recalcing}>{recalcing ? '重算中...' : '重算所有标准'}</Button>
         <Button variant="outlined" startIcon={<Tune />} onClick={() => setShowSeasonPanel(!showSeasonPanel)}>波动系数</Button>
         <Box sx={{ flexGrow: 1 }} />
         <ToggleButtonGroup size="small" value={statusFilter} exclusive onChange={(_, v) => { setStatusFilter(v || ''); setPage(0); }}>
@@ -263,12 +290,12 @@ export default function StockStandardList() {
               <TableCell>物料</TableCell><TableCell>品类</TableCell><TableCell>仓库</TableCell>
               <TableCell>波动系数</TableCell><TableCell>采购提前期(天)</TableCell><TableCell>最大库存(天)</TableCell>
               <TableCell>外仓系数</TableCell><TableCell>安全库存</TableCell><TableCell>预警库存</TableCell>
-              <TableCell>最高库存</TableCell><TableCell>状态</TableCell><TableCell>操作</TableCell>
+              <TableCell>最高库存</TableCell><TableCell>日均销量</TableCell><TableCell>状态</TableCell><TableCell>操作</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {list.length === 0 && (
-              <TableRow><TableCell colSpan={12} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+              <TableRow><TableCell colSpan={13} align="center" sx={{ py: 4, color: 'text.secondary' }}>
                 {loading ? '加载中...' : '暂无数据，请点击「批量初始化」自动生成'}
               </TableCell></TableRow>
             )}
@@ -289,6 +316,7 @@ export default function StockStandardList() {
                 <TableCell sx={{ fontWeight: 700, color: 'error.main' }}>{row.safetyStock != null ? row.safetyStock.toFixed(2) : '-'}</TableCell>
                 <TableCell sx={{ fontWeight: 700, color: 'warning.main' }}>{row.warnStock != null ? row.warnStock.toFixed(2) : '-'}</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>{row.maxStock != null ? row.maxStock.toFixed(2) : '-'}</TableCell>
+                <TableCell>{row.avgDailySales != null ? row.avgDailySales.toFixed(2) : '-'}</TableCell>
                 <TableCell>
                   <Chip label={row.status === 'ACTIVE' ? '启用' : '停用'} size="small"
                     color={row.status === 'ACTIVE' ? 'success' : 'default'} />
@@ -310,6 +338,11 @@ export default function StockStandardList() {
                       onClick={() => handleDelete(row.id)}
                       sx={{ minWidth: 44, fontSize: '0.7rem', py: 0.25, borderRadius: 10 }}>
                       删除
+                    </Button>
+                    <Button size="small" variant="contained" color="info"
+                      onClick={() => handleRecalcOne(row.id)}
+                      sx={{ minWidth: 44, fontSize: '0.7rem', py: 0.25, borderRadius: 10 }}>
+                      重算
                     </Button>
                   </Stack>
                 </TableCell>

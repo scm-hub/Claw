@@ -105,6 +105,10 @@ startCostPriceScheduler();
 import { startPurchasePlanScheduler } from './modules/purchase-plan.scheduler.js';
 startPurchasePlanScheduler();
 
+// 启动安全库存水位快照定时任务（每天 02:00）
+import { startStockLevelScheduler } from './modules/stock-level.scheduler.js';
+startStockLevelScheduler();
+
 // 404
 app.use((req, res) => {
   res.status(404).json({ success: false, message: `路由不存在: ${req.method} ${req.path}` });

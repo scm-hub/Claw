@@ -1966,4 +1966,99 @@ router.patch('/warehouses/:id/remote', authorize(ROLES.SUPER_ADMIN), async (req,
   } catch (err) { next(err); }
 });
 
+// ---------- 手动重算安全库存 ----------
+router.post('/stock-standards/recalculate', authorize(ROLES.SUPER_ADMIN), async (req, res, next) => {
+  try {
+    const { recalculateAll } = await import('../stock-standard.calculator.js');
+    const results = await recalculateAll();
+    res.json({ success: true, data: results, message: `重算完成：成功${results.success}条，失败${results.fail}条` });
+  } catch (err) { next(err); }
+});
+
+router.post('/stock-standards/:id/recalculate', authorize(ROLES.SUPER_ADMIN), async (req, res, next) => {
+  try {
+    const { recalculateOne } = await import('../stock-standard.calculator.js');
+    const data = await recalculateOne(req.params.id);
+    res.json({ success: true, data, message: '重算完成' });
+  } catch (err) {
+    if (err.message === '标准不存在') return res.status(404).json({ success: false, message: '标准不存在' });
+    next(err);
+  }
+});
+
+// ---------- 手动触发水位快照 ----------
+router.post('/stock-levels/snapshot', authorize(ROLES.SUPER_ADMIN), async (req, res, next) => {
+  try {
+    const { triggerSnapshot } = await import('../stock-level.scheduler.js');
+    await triggerSnapshot();
+    res.json({ success: true, message: '水位快照已完成' });
+  } catch (err) { next(err); }
+});
+
+// ---------- 预警列表 ----------
+router.get('/stock-alerts', async (req, res, next) => {
+  try {
+    const { status, materialId, warehouseId, page = 1, pageSize = 20 } = req.query;
+    const where = {};
+    if (status) where.status = status;
+    if (materialId) where.materialId = materialId;
+    if (warehouseId) where.warehouseId = warehouseId;
+
+    const [list, total] = await Promise.all([
+      prisma.stockAlert.findMany({
+        where,
+        include: {
+          material: { select: { id: true, code: true, name: true } },
+          warehouse: { select: { id: true, name: true } },
+        },
+        skip: (Number(page) - 1) * Number(pageSize),
+        take: Number(pageSize),
+        orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+      }),
+      prisma.stockAlert.count({ where }),
+    ]);
+    res.json({ success: true, data: { list, total, page: Number(page), pageSize: Number(pageSize) } });
+  } catch (err) { next(err); }
+});
+
+router.patch('/stock-alerts/:id/process', authorize(ROLES.SUPER_ADMIN), async (req, res, next) => {
+  try {
+    const { status, resolution } = req.body;
+    const data = await prisma.stockAlert.update({
+      where: { id: req.params.id },
+      data: {
+        status: status || 'PROCESSING',
+        ...(resolution && { resolution }),
+        ...(status === 'RESOLVED' && { processedAt: new Date() }),
+      },
+    });
+    res.json({ success: true, data });
+  } catch (err) { next(err); }
+});
+
+// ---------- 水位快照历史 ----------
+router.get('/stock-levels', async (req, res, next) => {
+  try {
+    const { materialId, warehouseId, page = 1, pageSize = 30 } = req.query;
+    const where = {};
+    if (materialId) where.materialId = materialId;
+    if (warehouseId) where.warehouseId = warehouseId;
+
+    const [list, total] = await Promise.all([
+      prisma.stockLevel.findMany({
+        where,
+        include: {
+          material: { select: { id: true, name: true } },
+          warehouse: { select: { id: true, name: true } },
+        },
+        skip: (Number(page) - 1) * Number(pageSize),
+        take: Number(pageSize),
+        orderBy: { snapshotDate: 'desc' },
+      }),
+      prisma.stockLevel.count({ where }),
+    ]);
+    res.json({ success: true, data: { list, total, page: Number(page), pageSize: Number(pageSize) } });
+  } catch (err) { next(err); }
+});
+
 export default router;
