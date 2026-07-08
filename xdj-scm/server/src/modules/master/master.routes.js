@@ -1786,4 +1786,184 @@ router.post('/vehicle-types/batch', authorize(ROLES.SUPER_ADMIN), async (req, re
   } catch (err) { next(err); }
 });
 
+// ============================================================
+// 安全库存管理
+// ============================================================
+
+// ---------- 波动系数 ----------
+router.get('/season-configs', async (req, res, next) => {
+  try {
+    const list = await prisma.seasonConfig.findMany({ orderBy: { coefficient: 'asc' } });
+    res.json({ success: true, data: list });
+  } catch (err) { next(err); }
+});
+
+router.put('/season-configs/:id', authorize(ROLES.SUPER_ADMIN), async (req, res, next) => {
+  try {
+    const { coefficient, description, isActive } = req.body;
+    const data = await prisma.seasonConfig.update({
+      where: { id: req.params.id },
+      data: { coefficient, description, isActive },
+    });
+    res.json({ success: true, data });
+  } catch (err) { next(err); }
+});
+
+// ---------- 安全库存标准 ----------
+router.get('/stock-standards', async (req, res, next) => {
+  try {
+    const { materialId, warehouseId, status, page = 1, pageSize = 50 } = req.query;
+    const where = {};
+    if (materialId) where.materialId = materialId;
+    if (warehouseId) where.warehouseId = warehouseId;
+    if (status) where.status = status;
+
+    const [list, total] = await Promise.all([
+      prisma.stockStandard.findMany({
+        where,
+        include: {
+          material: { select: { id: true, code: true, name: true, shelfLifeDays: true, purchaseLeadTime: true, group: { select: { id: true, name: true, category: true, stockCategory: true } } } },
+          warehouse: { select: { id: true, name: true, isRemote: true, transferLeadDays: true } },
+          seasonConfig: { select: { id: true, code: true, name: true, coefficient: true } },
+        },
+        skip: (Number(page) - 1) * Number(pageSize),
+        take: Number(pageSize),
+        orderBy: [{ material: { name: 'asc' } }, { warehouse: { name: 'asc' } }],
+      }),
+      prisma.stockStandard.count({ where }),
+    ]);
+
+    res.json({ success: true, data: { list, total, page: Number(page), pageSize: Number(pageSize) } });
+  } catch (err) { next(err); }
+});
+
+router.get('/stock-standards/:id', async (req, res, next) => {
+  try {
+    const item = await prisma.stockStandard.findUnique({
+      where: { id: req.params.id },
+      include: {
+        material: { select: { id: true, code: true, name: true, shelfLifeDays: true, purchaseLeadTime: true } },
+        warehouse: { select: { id: true, name: true } },
+        seasonConfig: true,
+      },
+    });
+    if (!item) return res.status(404).json({ success: false, message: '记录不存在' });
+    res.json({ success: true, data: item });
+  } catch (err) { next(err); }
+});
+
+router.post('/stock-standards', authorize(ROLES.SUPER_ADMIN), async (req, res, next) => {
+  try {
+    const { materialId, warehouseId, seasonConfigId, procurementDays, maxStorageDays, remoteAdjust } = req.body;
+    if (!materialId || !warehouseId || !seasonConfigId) {
+      return res.status(400).json({ success: false, message: '物料、仓库、波动系数为必填' });
+    }
+
+    // 检查唯一性
+    const exists = await prisma.stockStandard.findUnique({
+      where: { materialId_warehouseId: { materialId, warehouseId } },
+    });
+    if (exists) return res.status(400).json({ success: false, message: '该物料×仓库的安全库存标准已存在' });
+
+    // 继承物料的保质期和采购提前期
+    const material = await prisma.material.findUnique({
+      where: { id: materialId },
+      select: { shelfLifeDays: true, purchaseLeadTime: true },
+    });
+
+    const data = await prisma.stockStandard.create({
+      data: {
+        materialId, warehouseId, seasonConfigId,
+        procurementDays: procurementDays ?? material?.purchaseLeadTime ?? 3,
+        maxStorageDays: maxStorageDays ?? Math.ceil((material?.shelfLifeDays ?? 7) * 0.6),
+        remoteAdjust: remoteAdjust ?? null,
+      },
+      include: {
+        material: { select: { id: true, code: true, name: true } },
+        warehouse: { select: { id: true, name: true } },
+        seasonConfig: { select: { id: true, name: true, coefficient: true } },
+      },
+    });
+    res.json({ success: true, data, message: '创建成功' });
+  } catch (err) { next(err); }
+});
+
+router.put('/stock-standards/:id', authorize(ROLES.SUPER_ADMIN), async (req, res, next) => {
+  try {
+    const { seasonConfigId, procurementDays, maxStorageDays, remoteAdjust, status } = req.body;
+    const data = await prisma.stockStandard.update({
+      where: { id: req.params.id },
+      data: { seasonConfigId, procurementDays, maxStorageDays, remoteAdjust, status },
+      include: {
+        material: { select: { id: true, code: true, name: true } },
+        warehouse: { select: { id: true, name: true } },
+        seasonConfig: { select: { id: true, name: true, coefficient: true } },
+      },
+    });
+    res.json({ success: true, data, message: '更新成功' });
+  } catch (err) { next(err); }
+});
+
+router.delete('/stock-standards/:id', authorize(ROLES.SUPER_ADMIN), async (req, res, next) => {
+  try {
+    await prisma.stockStandard.delete({ where: { id: req.params.id } });
+    res.json({ success: true, message: '删除成功' });
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(404).json({ success: false, message: '记录不存在' });
+    next(err);
+  }
+});
+
+// 批量生成/初始化：为所有物料×仓库组合创建安全库存标准（使用默认参数）
+router.post('/stock-standards/batch-init', authorize(ROLES.SUPER_ADMIN), async (req, res, next) => {
+  try {
+    const { seasonConfigId } = req.body;
+    if (!seasonConfigId) return res.status(400).json({ success: false, message: '请指定波动系数' });
+
+    const [materials, warehouses] = await Promise.all([
+      prisma.material.findMany({ where: { status: 'ACTIVE' }, select: { id: true, shelfLifeDays: true, purchaseLeadTime: true, group: { select: { stockCategory: true } } } }),
+      prisma.warehouse.findMany({ where: { status: 'ACTIVE' }, select: { id: true, isRemote: true, transferLeadDays: true } }),
+    ]);
+
+    let created = 0, skipped = 0;
+    for (const mat of materials) {
+      for (const wh of warehouses) {
+        const exists = await prisma.stockStandard.findUnique({
+          where: { materialId_warehouseId: { materialId: mat.id, warehouseId: wh.id } },
+        });
+        if (exists) { skipped++; continue; }
+
+        // 外仓系数：可调拨→0.8，远仓→1.3，总部仓→null
+        let remoteAdjust = null;
+        if (wh.isRemote) {
+          remoteAdjust = wh.transferLeadDays && wh.transferLeadDays <= 1 ? 0.8 : 1.3;
+        }
+
+        await prisma.stockStandard.create({
+          data: {
+            materialId: mat.id, warehouseId: wh.id, seasonConfigId,
+            procurementDays: mat.purchaseLeadTime,
+            maxStorageDays: Math.ceil(mat.shelfLifeDays * 0.6),
+            remoteAdjust,
+          },
+        });
+        created++;
+      }
+    }
+    res.json({ success: true, data: { created, skipped }, message: `批量初始化完成：新建${created}条，跳过${skipped}条` });
+  } catch (err) { next(err); }
+});
+
+// ---------- 仓库更新：外仓标记 ----------
+router.patch('/warehouses/:id/remote', authorize(ROLES.SUPER_ADMIN), async (req, res, next) => {
+  try {
+    const { isRemote, transferLeadDays } = req.body;
+    const data = await prisma.warehouse.update({
+      where: { id: req.params.id },
+      data: { isRemote, transferLeadDays },
+    });
+    res.json({ success: true, data });
+  } catch (err) { next(err); }
+});
+
 export default router;

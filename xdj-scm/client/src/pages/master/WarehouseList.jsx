@@ -76,7 +76,7 @@ export default function WarehouseList() {
 
   const handleOpen = (data = null) => {
     setDialog({ open: true, data });
-    setForm(data || { name: '', address: '', isColdStorage: false, status: 'ACTIVE' });
+    setForm(data || { name: '', address: '', isColdStorage: false, isRemote: false, transferLeadDays: null, status: 'ACTIVE' });
   };
 
   const handleSave = async () => {
@@ -289,6 +289,7 @@ export default function WarehouseList() {
               <TableCell sx={{ fontWeight: 600 }}>地址</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>仓管员</TableCell>
               <TableCell sx={{ fontWeight: 600 }} align="center">类型</TableCell>
+              <TableCell sx={{ fontWeight: 600 }} align="center">外仓</TableCell>
               <TableCell sx={{ fontWeight: 600 }} align="center">库区数</TableCell>
               <TableCell sx={{ fontWeight: 600 }} align="center">库存品种</TableCell>
               <TableCell sx={{ fontWeight: 600 }} align="center">状态</TableCell>
@@ -297,9 +298,9 @@ export default function WarehouseList() {
           </TableHead>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={9} align="center" sx={{ py: 3, color: 'text.secondary' }}>加载中...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={10} align="center" sx={{ py: 3, color: 'text.secondary' }}>加载中...</TableCell></TableRow>
             ) : filtered.length === 0 ? (
-              <TableRow><TableCell colSpan={9} align="center" sx={{ py: 3, color: 'text.secondary' }}>暂无数据</TableCell></TableRow>
+              <TableRow><TableCell colSpan={10} align="center" sx={{ py: 3, color: 'text.secondary' }}>暂无数据</TableCell></TableRow>
             ) : (
               filtered.map((item) => (
                 <TableRow key={item.id} hover>
@@ -317,6 +318,13 @@ export default function WarehouseList() {
                       color={item.isColdStorage ? 'info' : 'default'}
                       variant={item.isColdStorage ? 'filled' : 'outlined'}
                     />
+                  </TableCell>
+                  <TableCell align="center">
+                    {item.isRemote ? (
+                      <Chip label={item.transferLeadDays ? `${item.transferLeadDays}天` : '外仓'} size="small" color="warning" variant="filled" />
+                    ) : (
+                      <Chip label="总部" size="small" color="primary" variant="outlined" />
+                    )}
                   </TableCell>
                   <TableCell align="center">{item.zones?.length || 0}</TableCell>
                   <TableCell align="center">{item._count?.inventory || 0}</TableCell>
@@ -398,6 +406,22 @@ export default function WarehouseList() {
                 <Typography variant="body2">冷库</Typography>
               </Box>
             </Grid>
+            <Grid item xs={6}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+                <Switch checked={!!form.isRemote} onChange={(e) => setForm({ ...form, isRemote: e.target.checked })} />
+                <Typography variant="body2">异地外仓</Typography>
+              </Box>
+            </Grid>
+            {form.isRemote && (
+              <Grid item xs={6}>
+                <TextField fullWidth size="small" type="number" label="调拨到达天数"
+                  value={form.transferLeadDays ?? ''}
+                  onChange={(e) => setForm({ ...form, transferLeadDays: e.target.value ? Number(e.target.value) : null })}
+                  helperText="总部到该仓所需天数"
+                  inputProps={{ min: 1, max: 30 }}
+                />
+              </Grid>
+            )}
             <Grid item xs={6}>
               <TextField select fullWidth size="small" label="状态" value={form.status || 'ACTIVE'}
                 onChange={(e) => setForm({ ...form, status: e.target.value })}>

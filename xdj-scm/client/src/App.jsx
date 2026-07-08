@@ -18,6 +18,7 @@ import DepartmentList from './pages/master/DepartmentList';
 import PurchaserAssignment from './pages/master/PurchaserAssignment';
 import PrintTemplateList from './pages/master/PrintTemplateList';
 import VehicleTypeList from './pages/master/VehicleTypeList';
+import StockStandardList from './pages/master/StockStandardList';
 
 // 采购管理
 import PurchasePlanList from './pages/purchase/PurchasePlanList';
@@ -107,6 +108,7 @@ export default function App() {
           <Route path="master/providers" element={<LogisticsProviderList />} />
           <Route path="master/print-templates" element={<PrintTemplateList />} />
           <Route path="master/vehicle-types" element={<VehicleTypeList />} />
+          <Route path="master/stock-standards" element={<StockStandardList />} />
           <Route path="master/addresses" element={<AddressList />} />
 
           {/* 采购管理 */}

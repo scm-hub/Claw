@@ -13,7 +13,7 @@ import {
   Description as ContractIcon, SupportAgent as AfterSalesIcon, Approval as ApprovalIcon,
   Analytics as AnalyticsIcon, NotificationsActive as AlertIcon, RateReview as EvalIcon,
   Settings as SettingsIcon, People as PeopleIcon, ExpandLess, ExpandMore,
-  Logout, Person, Menu as MenuIcon, Business, Print as PrintIcon, Route as RouteIcon,
+  Logout, Person, Menu as MenuIcon, Business, Print as PrintIcon, Route as RouteIcon, Shield as ShieldIcon,
 } from '@mui/icons-material';
 import { useAuthStore, ROLE_LABELS, hasModule } from '../store/authStore';
 
@@ -36,6 +36,7 @@ const menuGroups = [
       { path: '/master/providers', label: '承运商管理', icon: <LogisticsIcon />, module: 'master-providers' },
       { path: '/master/print-templates', label: '打印管理', icon: <PrintIcon />, module: 'master-print-templates' },
       { path: '/master/vehicle-types', label: '车型管理', icon: <LogisticsIcon />, module: 'master-vehicle-types' },
+      { path: '/master/stock-standards', label: '安全库存标准', icon: <ShieldIcon />, module: 'master-stock-standards' },
       { path: '/master/addresses', label: '地址管理', icon: <RouteIcon />, module: 'master-addresses' },
     ],
   },
