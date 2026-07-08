@@ -1998,22 +1998,27 @@ router.post('/stock-levels/snapshot', authorize(ROLES.SUPER_ADMIN), async (req, 
 // ---------- 预警列表 ----------
 router.get('/stock-alerts', async (req, res, next) => {
   try {
-    const { status, materialId, warehouseId, page = 1, pageSize = 20 } = req.query;
+    const { status, materialId, warehouseId, alertType, alertSubType, level, page = 1, pageSize = 20 } = req.query;
     const where = {};
     if (status) where.status = status;
     if (materialId) where.materialId = materialId;
     if (warehouseId) where.warehouseId = warehouseId;
+    if (alertType) where.alertType = alertType;
+    if (alertSubType) where.alertSubType = alertSubType;
+    if (level) where.level = level;
 
     const [list, total] = await Promise.all([
       prisma.stockAlert.findMany({
         where,
         include: {
-          material: { select: { id: true, code: true, name: true } },
+          material: { select: { id: true, code: true, name: true, shelfLifeDays: true } },
           warehouse: { select: { id: true, name: true } },
+          batch: { select: { id: true, batchNo: true, expiryDate: true, remainingQty: true } },
+          steps: { orderBy: { createdAt: 'asc' }, take: 5 },
         },
         skip: (Number(page) - 1) * Number(pageSize),
         take: Number(pageSize),
-        orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+        orderBy: [{ level: 'desc' }, { status: 'asc' }, { createdAt: 'desc' }],
       }),
       prisma.stockAlert.count({ where }),
     ]);
@@ -2023,13 +2028,69 @@ router.get('/stock-alerts', async (req, res, next) => {
 
 router.patch('/stock-alerts/:id/process', authorize(ROLES.SUPER_ADMIN), async (req, res, next) => {
   try {
-    const { status, resolution } = req.body;
+    const { status, resolution, step, rootCause, transferOrderId, purchaseOrderId } = req.body;
+
+    // 记录处理步骤
+    if (step) {
+      await prisma.alertStep.create({
+        data: {
+          alertId: req.params.id,
+          step: step.step || 'DISPOSE',
+          action: step.action || '',
+          handlerId: step.handlerId,
+          handlerRole: step.handlerRole,
+          result: step.result,
+        },
+      });
+    }
+
+    const updateData = {
+      status: status || 'PROCESSING',
+      ...(resolution && { resolution }),
+      ...(rootCause && { rootCause }),
+      ...(transferOrderId && { transferOrderId }),
+      ...(purchaseOrderId && { purchaseOrderId }),
+      ...(status === 'RESOLVED' && { processedAt: new Date() }),
+    };
+
+    const data = await prisma.stockAlert.update({
+      where: { id: req.params.id },
+      data: updateData,
+    });
+    res.json({ success: true, data });
+  } catch (err) { next(err); }
+});
+
+// 获取预警的处置步骤
+router.get('/stock-alerts/:id/steps', async (req, res, next) => {
+  try {
+    const steps = await prisma.alertStep.findMany({
+      where: { alertId: req.params.id },
+      orderBy: { createdAt: 'asc' },
+    });
+    res.json({ success: true, data: steps });
+  } catch (err) { next(err); }
+});
+
+// 核销验证
+router.patch('/stock-alerts/:id/close-verify', authorize(ROLES.SUPER_ADMIN), async (req, res, next) => {
+  try {
     const data = await prisma.stockAlert.update({
       where: { id: req.params.id },
       data: {
-        status: status || 'PROCESSING',
-        ...(resolution && { resolution }),
-        ...(status === 'RESOLVED' && { processedAt: new Date() }),
+        status: 'RESOLVED',
+        closureVerifiedBy: req.user?.id || 'SYSTEM',
+        closureVerifiedAt: new Date(),
+        processedAt: new Date(),
+      },
+    });
+    // 记录核销步骤
+    await prisma.alertStep.create({
+      data: {
+        alertId: req.params.id,
+        step: 'CLOSE',
+        action: '核销验证通过',
+        handlerId: req.user?.id,
       },
     });
     res.json({ success: true, data });
@@ -2064,12 +2125,13 @@ router.get('/stock-levels', async (req, res, next) => {
 // ---------- 监控仪表盘汇总 ----------
 router.get('/stock-monitor/summary', async (req, res, next) => {
   try {
-    const [totalStandards, activeStandards, redAlerts, orangeAlerts, yellowAlerts, lastSnapshot] = await Promise.all([
+    const [totalStandards, activeStandards, redAlerts, orangeAlerts, yellowAlerts, expiryAlerts, lastSnapshot] = await Promise.all([
       prisma.stockStandard.count(),
       prisma.stockStandard.count({ where: { status: 'ACTIVE' } }),
-      prisma.stockAlert.count({ where: { level: 'RED', status: { in: ['ACTIVE', 'PROCESSING'] } } }),
-      prisma.stockAlert.count({ where: { level: 'ORANGE', status: { in: ['ACTIVE', 'PROCESSING'] } } }),
-      prisma.stockAlert.count({ where: { level: 'YELLOW', status: { in: ['ACTIVE'] } } }),
+      prisma.stockAlert.count({ where: { alertType: 'LOW_STOCK', status: { in: ['ACTIVE', 'PROCESSING'] } } }),
+      prisma.stockAlert.count({ where: { alertType: 'HIGH_STOCK', status: { in: ['ACTIVE', 'PROCESSING'] } } }),
+      prisma.stockAlert.count({ where: { alertType: 'APPROACHING', status: { in: ['ACTIVE'] } } }),
+      prisma.stockAlert.count({ where: { alertType: 'EXPIRY', status: { in: ['ACTIVE', 'PROCESSING'] } } }),
       prisma.stockLevel.findFirst({ orderBy: { snapshotDate: 'desc' }, select: { snapshotDate: true } }),
     ]);
 
@@ -2094,6 +2156,7 @@ router.get('/stock-monitor/summary', async (req, res, next) => {
         redAlerts,
         orangeAlerts,
         yellowAlerts,
+        expiryAlerts,
         lastSnapshotDate: lastSnapshot?.snapshotDate || null,
         warehouseStats,
       },

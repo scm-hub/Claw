@@ -993,6 +993,7 @@ model Batch {
   stockTakeItems    StockTakeItem[]
   afterSales        AfterSalesRecord[]
   barcodeRecords    BarcodeRecord[]
+  stockAlerts       StockAlert[]
 
   @@index([batchNo])
   @@index([materialId])
@@ -1940,25 +1941,61 @@ model StockLevel {
 
 // 库存预警记录
 model StockAlert {
-  id            String   @id @default(cuid())
-  materialId    String
-  warehouseId   String
-  alertType     String                                  // LOW_STOCK(低于安全) / HIGH_STOCK(超上限) / APPROACHING(逼近)
-  level         String                                  // RED / ORANGE / YELLOW
-  currentQty    Float                                   // 触发时库存
-  thresholdQty  Float                                   // 阈值
-  status        String   @default("ACTIVE")             // ACTIVE / PROCESSING / RESOLVED / DISMISSED
-  processedBy   String?
-  processedAt   DateTime?
-  resolution    String?   @db.Text                       // 处理备注
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id              String   @id @default(cuid())
+  materialId      String
+  warehouseId     String
+  alertType       String                                  // LOW_STOCK(缺货) / HIGH_STOCK(积压) / EXPIRY(临期) / APPROACHING(逼近)
+  alertSubType    String?                                 // YELLOW_LOW / RED_LOW / CRITICAL / ORANGE_80 / DEEP_RED / YELLOW_EXPIRY / RED_EXPIRY
+  level           String                                  // YELLOW / RED / CRITICAL / ORANGE / DEEP_RED
+  currentQty      Float                                   // 触发时库存
+  thresholdQty    Float                                   // 阈值
+  inTransitQty    Float?                                  // 在途库存量（触发时快照）
+  lockedQty       Float?                                  // 锁定/预留量
+  batchId         String?                                 // 关联批次（临期预警专用）
+  expiryDate      DateTime?                               // 到期日（临期预警专用）
+  remainingDays   Int?                                    // 剩余保质期天数
+  rootCause       String?                                 // 根因：INSUFFICIENT_PURCHASE / SALES_SURGE / LOGISTICS_DELAY / FORECAST_BIAS / SLOW_MOVING / EXPIRY_LOSS
+  status          String   @default("ACTIVE")             // ACTIVE / PROCESSING / RESOLVED / DISMISSED
+  deadline        DateTime?                               // 处理截止时间
+  assignedTo      String?                                 // 指派处理人
+  processedBy     String?
+  processedAt     DateTime?
+  transferOrderId String?                                 // 关联调拨单号
+  purchaseOrderId String?                                 // 关联采购单号
+  resolution      String?   @db.Text                      // 处理记录
+  escalatedAt     DateTime?                               // 升级时间
+  escalatedFrom   String?                                 // 升级来源（原预警 ID）
+  closureVerifiedBy String?                                // 核销验证人
+  closureVerifiedAt DateTime?                              // 核销验证时间
+  attachments     Json?                                   // 附件 [{name, url}]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   material      Material     @relation(fields: [materialId], references: [id])
   warehouse     Warehouse    @relation(fields: [warehouseId], references: [id])
+  batch         Batch?       @relation(fields: [batchId], references: [id])
+  steps         AlertStep[]
 
   @@index([materialId, warehouseId])
   @@index([status])
+  @@index([alertType])
   @@index([createdAt])
   @@map("stock_alerts")
+}
+
+// 预警处置步骤记录
+model AlertStep {
+  id          String   @id @default(cuid())
+  alertId     String
+  step        String                                  // VERIFY(核查) / DISPOSE(处置) / FOLLOW(跟进) / CLOSE(核销)
+  action      String   @db.Text                       // 处理动作描述
+  handlerId   String?                                  // 处理人
+  handlerRole String?                                  // 处理人角色
+  result      String?  @db.Text                       // 处理结果
+  createdAt   DateTime @default(now())
+
+  alert       StockAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+
+  @@index([alertId])
+  @@map("alert_steps")
 }
