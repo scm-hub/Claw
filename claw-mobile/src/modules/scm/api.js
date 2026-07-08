@@ -7,7 +7,7 @@ import { Capacitor } from '@capacitor/core';
  */
 function getBaseUrl() {
   if (Capacitor.isNativePlatform()) {
-    return 'http://111.17.201.197:5174/api';
+    return 'http://192.168.21.34:5174/api';
   }
   return '/api';
 }
