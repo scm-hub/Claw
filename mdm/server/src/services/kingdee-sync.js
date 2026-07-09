@@ -38,19 +38,19 @@ export async function pullCustomersFromKingdee() {
 
   for (const record of result.records) {
     try {
+      const code = record.FNumber || record.code || '';
       const existing = await prisma.kingdeeMasterData.findFirst({
-        where: { kingdeeId: record.kingdeeId, entityType: 'customer' },
+        where: { code, entityType: 'customer' },
       });
 
       const data = {
         entityType: 'customer',
-        kingdeeId: record.kingdeeId,
-        code: record.code,
-        name: record.name,
+        kingdeeId: code,
+        code,
+        name: record.FName || record.name || '',
         extra: JSON.stringify({
-          shortName: record.shortName,
-          currency: record.currency,
-          modifyDate: record.modifyDate,
+          shortName: record.FShortName || '',
+          currency: record.FTRADINGCURRID || '',
         }),
         lastSyncAt: new Date(),
       };
@@ -64,7 +64,7 @@ export async function pullCustomersFromKingdee() {
       }
     } catch (err) {
       failed++;
-      details.push({ record: record.name, error: err.message });
+      details.push({ record: record.FName || record.name, error: err.message });
     }
   }
 
@@ -92,20 +92,18 @@ export async function pullSuppliersFromKingdee() {
 
   for (const record of result.records) {
     try {
+      const code = record.FNumber || record.code || '';
       const existing = await prisma.kingdeeMasterData.findFirst({
-        where: { kingdeeId: record.kingdeeId, entityType: 'supplier' },
+        where: { code, entityType: 'supplier' },
       });
 
       const data = {
         entityType: 'supplier',
-        kingdeeId: record.kingdeeId,
-        code: record.code,
-        name: record.name,
+        kingdeeId: code,
+        code,
+        name: record.FName || record.name || '',
         extra: JSON.stringify({
-          shortName: record.shortName,
-          contact: record.contact,
-          phone: record.phone,
-          modifyDate: record.modifyDate,
+          shortName: record.FShortName || '',
         }),
         lastSyncAt: new Date(),
       };
@@ -119,7 +117,7 @@ export async function pullSuppliersFromKingdee() {
       }
     } catch (err) {
       failed++;
-      details.push({ record: record.name, error: err.message });
+      details.push({ record: record.FName || record.name, error: err.message });
     }
   }
 
@@ -147,21 +145,23 @@ export async function pullMaterialsFromKingdee() {
 
   for (const record of result.records) {
     try {
+      const code = record.FNumber || record.code || '';
       const existing = await prisma.kingdeeMasterData.findFirst({
-        where: { kingdeeId: record.kingdeeId, entityType: 'material' },
+        where: { code, entityType: 'material' },
       });
 
       const data = {
         entityType: 'material',
-        kingdeeId: record.kingdeeId,
-        code: record.code,
-        name: record.name,
+        kingdeeId: code,
+        code,
+        name: record.FName || record.name || '',
         extra: JSON.stringify({
-          spec: record.spec,
-          unit: record.unit,
-          group: record.group,
-          erpClsID: record.erpClsID,
-          modifyDate: record.modifyDate,
+          spec: record.FSpecification || '',
+          baseUnit: record.FBaseUnitId || '',
+          purchaseUnit: record.FPurchaseUnitId || '',
+          salesUnit: record.FSaleUnitId || '',
+          materialGroup: record.FMaterialGroup || '',
+          auxProperty: record.FAuxPropertyId || '',
         }),
         lastSyncAt: new Date(),
       };
@@ -175,7 +175,7 @@ export async function pullMaterialsFromKingdee() {
       }
     } catch (err) {
       failed++;
-      details.push({ record: record.name, error: err.message });
+      details.push({ record: record.FName || record.name, error: err.message });
     }
   }
 

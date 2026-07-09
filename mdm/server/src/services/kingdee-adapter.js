@@ -219,7 +219,10 @@ class KingdeeAdapter {
     const url = `${this.client.config.baseUrl}/Kingdee.BOS.WebApi.ServicesStub.DynamicFormService.ExecuteBillQuery.common.kdsvc`;
     const allRows = [];
     let startRow = 0;
-    const limit = 500;
+    // 金蝶单次查询上限约 10000，用 5000 确保稳定分页
+    const limit = 5000;
+    const fields = fieldKeys.split(',');
+    let totalFetched = 0;
 
     while (true) {
       const data = {
@@ -230,29 +233,29 @@ class KingdeeAdapter {
       };
       if (filterString) data.FilterString = filterString;
 
+      console.log(`[Kingdee] 查询 ${formId} StartRow=${startRow} Limit=${limit}`);
+
       const response = await this.client._request(url, 'POST', {
         formid: formId,
         data: data,
       });
 
-      // ExecuteBillQuery 返回 [[flatArray...]]
-      const flat = Array.isArray(response[0])
-        ? response[0]
-        : Array.isArray(response)
-          ? response
-          : [];
-      const fields = fieldKeys.split(',');
-      const fieldCount = fields.length;
+      // ExecuteBillQuery 返回 [[row1], [row2], ...]
+      const rows = Array.isArray(response) ? response : [];
+      if (rows.length === 0) break;
 
-      for (let i = 0; i < flat.length; i += fieldCount) {
+      for (const rowArr of rows) {
+        if (!Array.isArray(rowArr)) continue;
         const row = {};
         fields.forEach((f, idx) => {
-          row[f.trim()] = flat[i + idx] || '';
+          row[f.trim()] = rowArr[idx] || '';
         });
         allRows.push(row);
       }
 
-      if (flat.length < limit * fieldCount) break;
+      totalFetched += rows.length;
+      // 如果返回数量少于请求数量，说明已到末尾
+      if (rows.length < limit) break;
       startRow += limit;
     }
 
@@ -292,12 +295,29 @@ class KingdeeAdapter {
     console.log('[Kingdee] 拉取物料数据...');
     let filter = '';
     if (lastSyncTime) filter = `FModifyDate >= '${lastSyncTime}'`;
+    // FBaseUnitId=基本单位, FPurchaseUnitId=采购单位, FSaleUnitId=销售单位, FMaterialGroup=物料分组, FAuxPropertyId=辅助属性
+    const fields = 'FNumber,FName,FSpecification,FBaseUnitId,FPurchaseUnitId,FSaleUnitId,FMaterialGroup,FAuxPropertyId';
     const records = await this._executeBillQuery(
       'BD_MATERIAL',
-      'FNumber,FName,FSpecification',
+      fields,
       filter,
     );
-    return { entityType: 'material', total: records.length, records };
+    // 解析金蝶引用字段（{FNumber: 'xxx'} → 'xxx'）
+    const parseRef = (val) => {
+      if (!val || val === '') return '';
+      if (typeof val === 'string') return val;
+      if (typeof val === 'object' && val.FNumber) return val.FNumber;
+      return '';
+    };
+    const parsed = records.map(r => ({
+      ...r,
+      FBaseUnitId: parseRef(r.FBaseUnitId),
+      FPurchaseUnitId: parseRef(r.FPurchaseUnitId),
+      FSaleUnitId: parseRef(r.FSaleUnitId),
+      FMaterialGroup: parseRef(r.FMaterialGroup),
+      FAuxPropertyId: parseRef(r.FAuxPropertyId),
+    }));
+    return { entityType: 'material', total: parsed.length, records: parsed };
   }
 
   // ---- 推送数据到金蝶（MDM → 金蝶）【已禁用，只拉取不推送】----
