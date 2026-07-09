@@ -49,7 +49,7 @@ export default function Departments() {
                 <TableCell><Typography variant="caption" color="text.secondary">{dept.hrmsId.substring(0, 16)}...</Typography></TableCell>
                 <TableCell>{dept.parentId ? dept.parentId.substring(0, 16) + '...' : '— (顶级)'}</TableCell>
                 <TableCell>{dept.sortOrder}</TableCell>
-                <TableCell><Chip size="small" label={dept.status} color={dept.status === 'ACTIVE' ? 'success' : 'default'} /></TableCell>
+                <TableCell><Chip size="small" label={dept.status === 'ACTIVE' ? '启用' : dept.status === 'INACTIVE' ? '停用' : dept.status} color={dept.status === 'ACTIVE' ? 'success' : 'default'} /></TableCell>
                 <TableCell>{new Date(dept.lastSyncAt).toLocaleString('zh-CN')}</TableCell>
               </TableRow>
             ))}

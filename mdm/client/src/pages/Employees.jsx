@@ -36,6 +36,7 @@ export default function Employees() {
   }
 
   const statusColors = { ACTIVE: 'success', RESIGNED: 'error', INACTIVE: 'warning' };
+  const statusLabel = { ACTIVE: '在职', RESIGNED: '离职', INACTIVE: '停用' };
 
   return (
     <Box>
@@ -86,7 +87,7 @@ export default function Employees() {
                 <TableCell>{emp.phone || '—'}</TableCell>
                 <TableCell>{emp.email || '—'}</TableCell>
                 <TableCell>
-                  <Chip size="small" label={emp.status} color={statusColors[emp.status] || 'default'} />
+                  <Chip size="small" label={statusLabel[emp.status] || emp.status} color={statusColors[emp.status] || 'default'} />
                 </TableCell>
                 <TableCell>{new Date(emp.lastSyncAt).toLocaleString('zh-CN')}</TableCell>
               </TableRow>
