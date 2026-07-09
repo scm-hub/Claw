@@ -7,7 +7,9 @@ import dashboardRoutes from './routes/dashboard.js';
 import masterDataRoutes from './routes/master-data.js';
 import syncRoutes from './routes/sync.js';
 import syncLogRoutes from './routes/sync-log.js';
+import kingdeeRoutes from './routes/kingdee.js';
 import { portalLogReporter } from './middleware/portalLogReporter.js';
+import { startKingdeeScheduler } from './services/kingdee-scheduler.js';
 
 const app = express();
 const PORT = process.env.PORT || 4005;
@@ -61,6 +63,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/master-data', masterDataRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/sync-logs', syncLogRoutes);
+app.use('/api/kingdee', kingdeeRoutes);
 
 // 错误处理
 app.use((err, req, res, next) => {
@@ -71,4 +74,7 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
   console.log(`MDM Server running on http://localhost:${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/health`);
+
+  // 启动金蝶定时同步调度器
+  startKingdeeScheduler();
 });

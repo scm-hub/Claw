@@ -93,3 +93,20 @@ model SyncConfig {
 
   @@map("sync_configs")
 }
+
+/// 金蝶主数据（从金蝶拉取的客户/供应商/物料）
+model KingdeeMasterData {
+  id         String   @id @default(cuid())
+  entityType String   @map("entity_type") // customer | supplier | material
+  kingdeeId  String   @map("kingdee_id") // 金蝶内部ID
+  code       String   @default("") // 编码
+  name       String   // 名称
+  extra      String?  @db.Text // JSON 扩展字段（简称、规格、单位等）
+  lastSyncAt DateTime @default(now()) @map("last_sync_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([entityType, kingdeeId])
+  @@index([entityType, code])
+  @@map("kingdee_master_data")
+}
