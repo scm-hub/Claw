@@ -19,6 +19,15 @@ const STATUS_MAP = {
   SKIPPED: '已跳过',
 };
 
+const ENTITY_MAP = {
+  MATERIAL: '物料',
+  SUPPLIER: '供应商',
+  CUSTOMER: '客户',
+  EMPLOYEE: '员工',
+  DEPARTMENT: '部门',
+  ALL: '全部',
+};
+
 const getStatusColor = (s) => {
   if (s === 'SUCCESS') return 'success';
   if (s === 'FAILED') return 'error';
@@ -273,7 +282,7 @@ export default function Dashboard() {
                     log.syncType?.includes('PULL') ? 'primary' : 'secondary'
                   } variant="outlined" />
                 </TableCell>
-                <TableCell>{log.entityType}</TableCell>
+                <TableCell>{ENTITY_MAP[log.entityType] || log.entityType}</TableCell>
                 <TableCell>
                   <Chip size="small" label={STATUS_MAP[log.status] || log.status}
                     color={getStatusColor(log.status)} />
