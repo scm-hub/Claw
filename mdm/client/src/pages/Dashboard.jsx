@@ -2,22 +2,47 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Box, Grid, Card, CardContent, Typography, Button, Alert, CircularProgress,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Chip,
+  Divider, Tabs, Tab,
 } from '@mui/material';
 import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import SyncIcon from '@mui/icons-material/Sync';
+import HubIcon from '@mui/icons-material/Hub';
 import api from '../api';
+
+const STATUS_MAP = {
+  SUCCESS: '成功',
+  FAILED: '失败',
+  PARTIAL: '部分成功',
+  IN_PROGRESS: '进行中',
+  PENDING: '待执行',
+  SKIPPED: '已跳过',
+};
+
+const getStatusColor = (s) => {
+  if (s === 'SUCCESS') return 'success';
+  if (s === 'FAILED') return 'error';
+  if (s === 'PARTIAL') return 'warning';
+  if (s === 'IN_PROGRESS') return 'info';
+  return 'default';
+};
 
 export default function Dashboard() {
   const [data, setData] = useState(null);
+  const [kingdeeStatus, setKingdeeStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(null);
   const [message, setMessage] = useState(null);
+  const [syncTab, setSyncTab] = useState(0);
 
   const fetchDashboard = useCallback(async () => {
     try {
-      const res = await api.get('/dashboard');
-      setData(res.data);
+      const [dashRes, kdRes] = await Promise.all([
+        api.get('/dashboard'),
+        api.get('/kingdee/status'),
+      ]);
+      setData(dashRes.data);
+      setKingdeeStatus(kdRes.data?.data || null);
     } catch (err) {
       console.error(err);
     } finally {
@@ -31,12 +56,25 @@ export default function Dashboard() {
     setSyncing(type);
     setMessage(null);
     try {
-      const endpoint = type === 'pull' ? '/sync/pull-hrms' : type === 'push' ? '/sync/push-scm' : '/sync/full';
+      const endpoints = {
+        'pull-hrms': '/sync/pull-hrms',
+        'push-scm': '/sync/push-scm',
+        'full': '/sync/full',
+        'kd-pull-all': '/kingdee/pull-all',
+        'kd-push-all': '/kingdee/push-all',
+        'kd-pull-customers': '/kingdee/pull-customers',
+        'kd-pull-suppliers': '/kingdee/pull-suppliers',
+        'kd-pull-materials': '/kingdee/pull-materials',
+        'kd-push-depts': '/kingdee/push-departments',
+        'kd-push-emps': '/kingdee/push-employees',
+      };
+      const endpoint = endpoints[type];
+      if (!endpoint) throw new Error('未知同步类型');
       const res = await api.post(endpoint);
-      setMessage({ type: 'success', text: `同步完成！${JSON.stringify(res.data).substring(0, 200)}` });
+      setMessage({ type: 'success', text: `同步完成！共处理 ${res.data?.data?.total || 0} 条记录` });
       fetchDashboard();
     } catch (err) {
-      setMessage({ type: 'error', text: err.response?.data?.message || '同步失败' });
+      setMessage({ type: 'error', text: err.response?.data?.message || err.message || '同步失败' });
     } finally {
       setSyncing(null);
     }
@@ -47,6 +85,7 @@ export default function Dashboard() {
   }
 
   const { masterData, scmSync, recentLogs } = data || {};
+  const kdCounts = kingdeeStatus?.counts || {};
 
   return (
     <Box>
@@ -54,72 +93,166 @@ export default function Dashboard() {
 
       {message && <Alert severity={message.type} sx={{ mb: 2 }} onClose={() => setMessage(null)}>{message.text}</Alert>}
 
+      {/* 统计卡片 */}
       <Grid container spacing={2} mb={3}>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={6} sm={4} md={2}>
           <Card><CardContent>
-            <Typography color="text.secondary" variant="body2" gutterBottom>部门主数据</Typography>
+            <Typography color="text.secondary" variant="body2" gutterBottom>部门</Typography>
             <Typography variant="h4" fontWeight="bold" color="primary.main">{masterData?.departments || 0}</Typography>
           </CardContent></Card>
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={6} sm={4} md={2}>
           <Card><CardContent>
-            <Typography color="text.secondary" variant="body2" gutterBottom>员工主数据</Typography>
+            <Typography color="text.secondary" variant="body2" gutterBottom>员工</Typography>
             <Typography variant="h4" fontWeight="bold" color="primary.main">{masterData?.employees || 0}</Typography>
           </CardContent></Card>
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={6} sm={4} md={2}>
           <Card><CardContent>
-            <Typography color="text.secondary" variant="body2" gutterBottom>SCM 已同步</Typography>
+            <Typography color="text.secondary" variant="body2" gutterBottom>金蝶客户</Typography>
+            <Typography variant="h4" fontWeight="bold" color="warning.main">{kdCounts.customer || 0}</Typography>
+          </CardContent></Card>
+        </Grid>
+        <Grid item xs={6} sm={4} md={2}>
+          <Card><CardContent>
+            <Typography color="text.secondary" variant="body2" gutterBottom>金蝶供应商</Typography>
+            <Typography variant="h4" fontWeight="bold" color="warning.main">{kdCounts.supplier || 0}</Typography>
+          </CardContent></Card>
+        </Grid>
+        <Grid item xs={6} sm={4} md={2}>
+          <Card><CardContent>
+            <Typography color="text.secondary" variant="body2" gutterBottom>金蝶物料</Typography>
+            <Typography variant="h4" fontWeight="bold" color="warning.main">{kdCounts.material || 0}</Typography>
+          </CardContent></Card>
+        </Grid>
+        <Grid item xs={6} sm={4} md={2}>
+          <Card><CardContent>
+            <Typography color="text.secondary" variant="body2" gutterBottom>SCM已同步</Typography>
             <Typography variant="h4" fontWeight="bold" color="success.main">
               {(scmSync?.deptMappings || 0) + (scmSync?.empMappings || 0)}
             </Typography>
           </CardContent></Card>
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card><CardContent>
-            <Typography color="text.secondary" variant="body2" gutterBottom>待同步/失败</Typography>
-            <Typography variant="h4" fontWeight="bold" color="error.main">{scmSync?.pending || 0}</Typography>
-          </CardContent></Card>
-        </Grid>
       </Grid>
 
-      <Typography variant="h6" fontWeight="bold" mb={2}>同步操作</Typography>
-      <Grid container spacing={2} mb={3}>
-        <Grid item xs={12} md={4}>
-          <Button
-            fullWidth variant="outlined" size="large" startIcon={<CloudDownloadIcon />}
-            onClick={() => handleSync('pull')} disabled={!!syncing}
-            sx={{ py: 1.5 }}
-          >
-            {syncing === 'pull' ? <CircularProgress size={20} /> : '从 HRMS 拉取'}
-          </Button>
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <Button
-            fullWidth variant="outlined" size="large" color="secondary" startIcon={<CloudUploadIcon />}
-            onClick={() => handleSync('push')} disabled={!!syncing}
-            sx={{ py: 1.5 }}
-          >
-            {syncing === 'push' ? <CircularProgress size={20} /> : '推送到 SCM'}
-          </Button>
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <Button
-            fullWidth variant="contained" size="large" startIcon={<SyncIcon />}
-            onClick={() => handleSync('full')} disabled={!!syncing}
-            sx={{ py: 1.5 }}
-          >
-            {syncing === 'full' ? <CircularProgress size={20} color="inherit" /> : '完整同步（拉取+推送）'}
-          </Button>
-        </Grid>
-      </Grid>
+      {/* 同步操作 Tabs */}
+      <Tabs value={syncTab} onChange={(e, v) => setSyncTab(v)} sx={{ mb: 2 }}>
+        <Tab label="HRMS ↔ SCM" />
+        <Tab label="金蝶云星空" icon={<HubIcon />} iconPosition="start" />
+      </Tabs>
 
+      {/* Tab 1: HRMS ↔ SCM */}
+      {syncTab === 0 && (
+        <>
+          <Typography variant="h6" fontWeight="bold" mb={2}>数据同步操作</Typography>
+          <Grid container spacing={2} mb={3}>
+            <Grid item xs={12} md={4}>
+              <Button fullWidth variant="outlined" size="large" startIcon={<CloudDownloadIcon />}
+                onClick={() => handleSync('pull-hrms')} disabled={!!syncing} sx={{ py: 1.5 }}>
+                {syncing === 'pull-hrms' ? <CircularProgress size={20} /> : '从 HRMS 拉取'}
+              </Button>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <Button fullWidth variant="outlined" size="large" color="secondary" startIcon={<CloudUploadIcon />}
+                onClick={() => handleSync('push-scm')} disabled={!!syncing} sx={{ py: 1.5 }}>
+                {syncing === 'push-scm' ? <CircularProgress size={20} /> : '推送到 SCM'}
+              </Button>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <Button fullWidth variant="contained" size="large" startIcon={<SyncIcon />}
+                onClick={() => handleSync('full')} disabled={!!syncing} sx={{ py: 1.5 }}>
+                {syncing === 'full' ? <CircularProgress size={20} color="inherit" /> : '完整同步（拉取+推送）'}
+              </Button>
+            </Grid>
+          </Grid>
+        </>
+      )}
+
+      {/* Tab 2: 金蝶云星空 */}
+      {syncTab === 1 && (
+        <>
+          {/* 金蝶同步状态 */}
+          {kingdeeStatus?.config && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              上次同步：{kingdeeStatus.config.lastSyncAt
+                ? new Date(kingdeeStatus.config.lastSyncAt).toLocaleString('zh-CN')
+                : '从未同步'}
+              {kingdeeStatus.config.autoSync ? ' · 自动同步：每天一次' : ''}
+            </Alert>
+          )}
+
+          <Typography variant="subtitle1" fontWeight="bold" mb={1} color="text.secondary">
+            从金蝶拉取基础数据
+          </Typography>
+          <Grid container spacing={1.5} mb={2}>
+            <Grid item xs={6} sm={4} md={2.4}>
+              <Button fullWidth variant="outlined" color="warning" size="medium"
+                onClick={() => handleSync('kd-pull-customers')} disabled={!!syncing}
+                startIcon={<CloudDownloadIcon />}>
+                {syncing === 'kd-pull-customers' ? <CircularProgress size={16} /> : '拉取客户'}
+              </Button>
+            </Grid>
+            <Grid item xs={6} sm={4} md={2.4}>
+              <Button fullWidth variant="outlined" color="warning" size="medium"
+                onClick={() => handleSync('kd-pull-suppliers')} disabled={!!syncing}
+                startIcon={<CloudDownloadIcon />}>
+                {syncing === 'kd-pull-suppliers' ? <CircularProgress size={16} /> : '拉取供应商'}
+              </Button>
+            </Grid>
+            <Grid item xs={6} sm={4} md={2.4}>
+              <Button fullWidth variant="outlined" color="warning" size="medium"
+                onClick={() => handleSync('kd-pull-materials')} disabled={!!syncing}
+                startIcon={<CloudDownloadIcon />}>
+                {syncing === 'kd-pull-materials' ? <CircularProgress size={16} /> : '拉取物料产品'}
+              </Button>
+            </Grid>
+            <Grid item xs={6} sm={4} md={2.4}>
+              <Button fullWidth variant="contained" color="warning" size="medium"
+                onClick={() => handleSync('kd-pull-all')} disabled={!!syncing}
+                startIcon={<SyncIcon />}>
+                {syncing === 'kd-pull-all' ? <CircularProgress size={16} color="inherit" /> : '全部拉取'}
+              </Button>
+            </Grid>
+          </Grid>
+
+          <Typography variant="subtitle1" fontWeight="bold" mb={1} mt={2} color="text.secondary">
+            推送数据到金蝶
+          </Typography>
+          <Grid container spacing={1.5} mb={2}>
+            <Grid item xs={6} sm={4} md={3}>
+              <Button fullWidth variant="outlined" color="info" size="medium"
+                onClick={() => handleSync('kd-push-depts')} disabled={!!syncing}
+                startIcon={<CloudUploadIcon />}>
+                {syncing === 'kd-push-depts' ? <CircularProgress size={16} /> : '推送部门'}
+              </Button>
+            </Grid>
+            <Grid item xs={6} sm={4} md={3}>
+              <Button fullWidth variant="outlined" color="info" size="medium"
+                onClick={() => handleSync('kd-push-emps')} disabled={!!syncing}
+                startIcon={<CloudUploadIcon />}>
+                {syncing === 'kd-push-emps' ? <CircularProgress size={16} /> : '推送员工'}
+              </Button>
+            </Grid>
+            <Grid item xs={6} sm={4} md={3}>
+              <Button fullWidth variant="contained" color="info" size="medium"
+                onClick={() => handleSync('kd-push-all')} disabled={!!syncing}
+                startIcon={<SyncIcon />}>
+                {syncing === 'kd-push-all' ? <CircularProgress size={16} color="inherit" /> : '全部推送'}
+              </Button>
+            </Grid>
+          </Grid>
+        </>
+      )}
+
+      {/* 最近同步记录 */}
+      <Divider sx={{ my: 2 }} />
       <Typography variant="h6" fontWeight="bold" mb={2}>最近同步记录</Typography>
       <TableContainer component={Paper}>
         <Table size="small">
           <TableHead>
             <TableRow>
               <TableCell>类型</TableCell>
+              <TableCell>对象</TableCell>
               <TableCell>状态</TableCell>
               <TableCell>总数</TableCell>
               <TableCell>成功</TableCell>
@@ -130,13 +263,20 @@ export default function Dashboard() {
           <TableBody>
             {(recentLogs || []).map((log) => (
               <TableRow key={log.id}>
-                <TableCell>{log.syncType}</TableCell>
                 <TableCell>
-                  <Chip
-                    size="small"
-                    label={log.status}
-                    color={log.status === 'SUCCESS' ? 'success' : log.status === 'FAILED' ? 'error' : 'warning'}
-                  />
+                  <Chip size="small" label={
+                    log.syncType?.includes('KINGDEE') ? '金蝶' :
+                    log.syncType?.includes('PULL') ? '拉取' :
+                    log.syncType?.includes('PUSH') ? '推送' : log.syncType
+                  } color={
+                    log.syncType?.includes('KINGDEE') ? 'warning' :
+                    log.syncType?.includes('PULL') ? 'primary' : 'secondary'
+                  } variant="outlined" />
+                </TableCell>
+                <TableCell>{log.entityType}</TableCell>
+                <TableCell>
+                  <Chip size="small" label={STATUS_MAP[log.status] || log.status}
+                    color={getStatusColor(log.status)} />
                 </TableCell>
                 <TableCell>{log.totalRecords}</TableCell>
                 <TableCell>{log.successCount}</TableCell>
@@ -145,7 +285,7 @@ export default function Dashboard() {
               </TableRow>
             ))}
             {(!recentLogs || recentLogs.length === 0) && (
-              <TableRow><TableCell colSpan={6} align="center">暂无同步记录</TableCell></TableRow>
+              <TableRow><TableCell colSpan={7} align="center">暂无同步记录</TableCell></TableRow>
             )}
           </TableBody>
         </Table>
