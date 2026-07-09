@@ -1,22 +1,60 @@
 import { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
-  AppBar, Toolbar, Typography, Drawer, List, ListItemButton, ListItemIcon, ListItemText,
-  Box, IconButton, Menu, MenuItem, Avatar, Divider,
+  AppBar,
+  Toolbar,
+  Typography,
+  Drawer,
+  List,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  Box,
+  IconButton,
+  Menu,
+  MenuItem,
+  Avatar,
+  Divider,
 } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import PeopleIcon from '@mui/icons-material/People';
 import SyncHistoryIcon from '@mui/icons-material/SyncAlt';
 import HubIcon from '@mui/icons-material/Hub';
+import BusinessIcon from '@mui/icons-material/Business';
+import StoreIcon from '@mui/icons-material/Store';
+import InventoryIcon from '@mui/icons-material/Inventory';
 import useAuthStore, { hasModule } from '../store/auth';
 
 const drawerWidth = 240;
 
 const menuItems = [
   { text: '仪表盘', path: '/', icon: <DashboardIcon />, module: 'dashboard' },
-  { text: '部门主数据', path: '/departments', icon: <AccountTreeIcon />, module: 'master-data-departments' },
+  {
+    text: '部门主数据',
+    path: '/departments',
+    icon: <AccountTreeIcon />,
+    module: 'master-data-departments',
+  },
   { text: '员工主数据', path: '/employees', icon: <PeopleIcon />, module: 'master-data-employees' },
+  {
+    text: '金蝶客户',
+    path: '/kingdee-customers',
+    icon: <BusinessIcon />,
+    module: 'master-data-departments',
+  },
+  {
+    text: '金蝶供应商',
+    path: '/kingdee-suppliers',
+    icon: <StoreIcon />,
+    module: 'master-data-departments',
+  },
+  {
+    text: '金蝶物料',
+    path: '/kingdee-materials',
+    icon: <InventoryIcon />,
+    module: 'master-data-departments',
+  },
   { text: '同步日志', path: '/sync-log', icon: <SyncHistoryIcon />, module: 'master-data-sync' },
 ];
 
@@ -55,7 +93,9 @@ export default function MainLayout() {
           </IconButton>
           <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleClose}>
             <MenuItem disabled>
-              <Typography variant="body2">{user?.name} ({user?.email})</Typography>
+              <Typography variant="body2">
+                {user?.name} ({user?.email})
+              </Typography>
             </MenuItem>
             <Divider />
             <MenuItem onClick={handleLogout}>退出登录</MenuItem>
@@ -65,7 +105,11 @@ export default function MainLayout() {
 
       <Drawer
         variant="permanent"
-        sx={{ width: drawerWidth, flexShrink: 0, '& .MuiDrawer-paper': { width: drawerWidth, boxSizing: 'border-box' } }}
+        sx={{
+          width: drawerWidth,
+          flexShrink: 0,
+          '& .MuiDrawer-paper': { width: drawerWidth, boxSizing: 'border-box' },
+        }}
       >
         <Toolbar />
         <List>
@@ -75,8 +119,14 @@ export default function MainLayout() {
               onClick={() => navigate(item.path)}
               selected={location.pathname === item.path}
               sx={{
-                '&.Mui-selected': { bgcolor: 'primary.light', color: 'white', '&:hover': { bgcolor: 'primary.main' } },
-                '& .MuiListItemIcon-root': { color: location.pathname === item.path ? 'white' : 'inherit' },
+                '&.Mui-selected': {
+                  bgcolor: 'primary.light',
+                  color: 'white',
+                  '&:hover': { bgcolor: 'primary.main' },
+                },
+                '& .MuiListItemIcon-root': {
+                  color: location.pathname === item.path ? 'white' : 'inherit',
+                },
               }}
             >
               <ListItemIcon>{item.icon}</ListItemIcon>
@@ -86,7 +136,10 @@ export default function MainLayout() {
         </List>
       </Drawer>
 
-      <Box component="main" sx={{ flexGrow: 1, p: 3, bgcolor: 'background.default', minHeight: '100vh' }}>
+      <Box
+        component="main"
+        sx={{ flexGrow: 1, p: 3, bgcolor: 'background.default', minHeight: '100vh' }}
+      >
         <Toolbar />
         <Outlet />
       </Box>

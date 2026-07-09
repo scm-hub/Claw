@@ -7,6 +7,9 @@ import Dashboard from './pages/Dashboard';
 import Departments from './pages/Departments';
 import Employees from './pages/Employees';
 import SyncLog from './pages/SyncLog';
+import KingdeeCustomers from './pages/KingdeeCustomers';
+import KingdeeSuppliers from './pages/KingdeeSuppliers';
+import KingdeeMaterials from './pages/KingdeeMaterials';
 
 function ProtectedRoute({ children }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
@@ -17,23 +20,26 @@ function ProtectedRoute({ children }) {
 export default function App() {
   return (
     <SsoAutoLogin>
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route
-        path="/"
-        element={
-          <ProtectedRoute>
-            <MainLayout />
-          </ProtectedRoute>
-        }
-      >
-        <Route index element={<Dashboard />} />
-        <Route path="departments" element={<Departments />} />
-        <Route path="employees" element={<Employees />} />
-        <Route path="sync-log" element={<SyncLog />} />
-      </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <MainLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<Dashboard />} />
+          <Route path="departments" element={<Departments />} />
+          <Route path="employees" element={<Employees />} />
+          <Route path="sync-log" element={<SyncLog />} />
+          <Route path="kingdee-customers" element={<KingdeeCustomers />} />
+          <Route path="kingdee-suppliers" element={<KingdeeSuppliers />} />
+          <Route path="kingdee-materials" element={<KingdeeMaterials />} />
+        </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </SsoAutoLogin>
   );
 }
