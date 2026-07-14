@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Box, Card, CardContent, Typography, Button, TextField, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Paper, IconButton, Dialog, DialogTitle,
@@ -34,6 +34,27 @@ export default function CustomerList() {
   const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0 });
   const [loading, setLoading] = useState(false);
   const [employees, setEmployees] = useState([]);
+  const [formErrors, setFormErrors] = useState({});
+
+  // 金蝶客户下拉搜索
+  const [kdCustomers, setKdCustomers] = useState([]);
+  const [kdCustomerLoading, setKdCustomerLoading] = useState(false);
+  const [kdCustomerSelected, setKdCustomerSelected] = useState(null);
+  const [kdCustomerInput, setKdCustomerInput] = useState('');
+  const kdSearchTimer = useRef(null);
+
+  // 搜索金蝶客户（300ms 防抖）
+  const searchKingdeeCustomers = useCallback((keyword) => {
+    if (kdSearchTimer.current) clearTimeout(kdSearchTimer.current);
+    kdSearchTimer.current = setTimeout(async () => {
+      setKdCustomerLoading(true);
+      try {
+        const res = await api.get('/master/kingdee-customers', { params: { keyword, limit: 50 } });
+        setKdCustomers(res.data || []);
+      } catch { setKdCustomers([]); }
+      finally { setKdCustomerLoading(false); }
+    }, 300);
+  }, []);
 
   const loadList = useCallback(async () => {
     setLoading(true);
@@ -68,8 +89,14 @@ export default function CustomerList() {
   useEffect(() => { loadStats(); }, [loadStats]);
   useEffect(() => {
     if (canAssignSalesRep) {
-      api.get('/master/employees?page=1&pageSize=999&status=ACTIVE').then(res => {
-        setEmployees(res.data?.list || res.data || []);
+      api.get('/master/purchaser-users').then(res => {
+        const users = (res.data || []).filter(u => u.employee).map(u => ({
+          id: u.employee.id,
+          name: u.employee.name,
+          department: u.employee.department?.name,
+          username: u.username,
+        }));
+        setEmployees(users);
       }).catch(() => {});
     }
   }, [canAssignSalesRep]);
@@ -87,9 +114,13 @@ export default function CustomerList() {
     setDialog({ open: true, data });
     setForm(data || {
       name: '', contactPerson: '', contactPhone: '', address: '',
-      creditLimit: '', creditPeriod: '', status: 'ACTIVE',
+      creditLimit: '', creditPeriod: '', status: 'ACTIVE', currency: '',
       salesRepId: user?.employeeId || '',
     });
+    // 重置金蝶客户搜���状态并预加载
+    setKdCustomerSelected(data ? { code: data.code, name: data.name, _kdCode: data.code } : null);
+    setKdCustomerInput(data?.name || '');
+    searchKingdeeCustomers('');
   };
 
   // 检查表单是否有未保存的改动
@@ -111,10 +142,21 @@ export default function CustomerList() {
       setConfirmClose(true);
     } else {
       setDialog({ open: false, data: null });
+      setFormErrors({});
     }
   };
 
   const handleSave = async () => {
+    const errors = {};
+    if (!form.name?.trim()) errors.name = '请输入客户名称';
+    if (!form.contactPerson?.trim()) errors.contactPerson = '必填';
+    if (!form.contactPhone?.trim()) errors.contactPhone = '必填';
+    if (form.creditLimit === '' || form.creditLimit === null || form.creditLimit === undefined) errors.creditLimit = '必填';
+    if (form.creditPeriod === '' || form.creditPeriod === null || form.creditPeriod === undefined) errors.creditPeriod = '必填';
+    if (canAssignSalesRep && (!form.salesRepId || form.salesRepId === '')) errors.salesRepId = '必填';
+    setFormErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
     try {
       const payload = { ...form };
       payload.creditLimit = payload.creditLimit === '' || payload.creditLimit === undefined ? 0 : Number(payload.creditLimit);
@@ -123,7 +165,7 @@ export default function CustomerList() {
       if (payload.salesRepId === '' || payload.salesRepId === undefined) payload.salesRepId = null;
       if (payload.departmentId === '' || payload.departmentId === undefined) payload.departmentId = null;
       // 清理前端可能混入的嵌套对象/只读字段
-      ['id', 'code', 'createdAt', 'updatedAt', 'salesRep', 'department', 'addresses', 'priceLists', 'salesOrders', 'salesPlanItems', 'accountsReceivable', 'shippingOrders', 'waybills', 'afterSales', 'batchTrackings'].forEach((k) => delete payload[k]);
+      ['id', 'createdAt', 'updatedAt', 'salesRep', 'department', 'addresses', 'priceLists', 'salesOrders', 'salesPlanItems', 'accountsReceivable', 'shippingOrders', 'waybills', 'afterSales', 'batchTrackings', '_kdCode'].forEach((k) => delete payload[k]);
       if (dialog.data) await api.put(`/master/customers/${dialog.data.id}`, payload);
       else await api.post('/master/customers', payload);
       setDialog({ open: false, data: null });
@@ -243,7 +285,7 @@ export default function CustomerList() {
                 size="small"
                 sx={{ minWidth: 180 }}
                 options={employees}
-                getOptionLabel={(opt) => opt.name || ''}
+                getOptionLabel={(opt) => `${opt.username || ''}${opt.name ? ' - ' + opt.name : ''}${opt.department ? ' (' + opt.department + ')' : ''}`}
                 value={employees.find(e => e.id === salesRepFilter) || null}
                 onChange={(_, v) => { setSalesRepFilter(v?.id || ''); setPage(0); }}
                 renderInput={(params) => <TextField {...params} label="业务员" size="small" />}
@@ -294,7 +336,7 @@ export default function CustomerList() {
                 )}
                 {salesRepFilter && (
                   <Chip
-                    label={`业务员: ${employees.find(e => e.id === salesRepFilter)?.name || salesRepFilter}`}
+                    label={`业务员: ${(() => { const e = employees.find(emp => emp.id === salesRepFilter); return e ? `${e.username} - ${e.name}` : salesRepFilter; })()}`}
                     size="small"
                     onDelete={() => { setSalesRepFilter(''); setPage(0); }}
                     color="primary"
@@ -397,34 +439,83 @@ export default function CustomerList() {
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 1 }}>
             <Grid item xs={6}>
-              <TextField fullWidth size="small" label="客户编码" value={form.code || '保存后自动生成'} disabled />
+              <TextField fullWidth size="small" label="客户编码" value={form.code || '选择后自动填入'} disabled />
             </Grid>
             <Grid item xs={6}>
-              <TextField fullWidth size="small" label="客户名称 *" value={form.name || ''}
-                onChange={(e) => setForm({ ...form, name: e.target.value })} />
+              <Autocomplete
+                size="small"
+                options={kdCustomers}
+                getOptionLabel={(m) => m.name || ''}
+                isOptionEqualToValue={(option, value) => option.code === value?.code}
+                value={kdCustomerSelected}
+                inputValue={kdCustomerInput}
+                loading={kdCustomerLoading}
+                loadingText="加载金蝶客户中..."
+                noOptionsText={kdCustomerLoading ? '加载中...' : '无匹配金蝶客户'}
+                openOnFocus
+                filterOptions={(x) => x}
+                onInputChange={(_, newInputValue, reason) => {
+                  if (reason === 'input') {
+                    setKdCustomerInput(newInputValue);
+                    searchKingdeeCustomers(newInputValue);
+                  }
+                }}
+                onChange={(_, newValue) => {
+                  setKdCustomerSelected(newValue);
+                  if (newValue) {
+                    setKdCustomerInput(newValue.name || '');
+                    setForm({ ...form, code: newValue.code, name: newValue.name || '', currency: newValue.currency || '', _kdCode: newValue.code });
+                  } else {
+                    setKdCustomerInput('');
+                    setForm({ ...form, code: '', name: '', currency: '', _kdCode: '' });
+                  }
+                }}
+                renderOption={(props, m) => (
+                  <li {...props}>
+                    <Typography variant="body2" fontWeight={500}>{m.name}</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                      {m.shortName ? `— ${m.shortName}` : ''}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto', fontSize: '0.7rem' }}>
+                      {m.code}
+                    </Typography>
+                  </li>
+                )}
+                renderInput={(params) => (
+                  <TextField {...params} label="客户名称 *" placeholder="输入关键字搜索金蝶客户..."
+                    error={!form.name?.trim()} helperText={!form.name?.trim() ? '必填 - 可从金蝶客户中选择' : '从金蝶客户中选择，也可手动输入'} />
+                )}
+              />
             </Grid>
             <Grid item xs={6}>
-              <TextField fullWidth size="small" label="联系人" value={form.contactPerson || ''}
-                onChange={(e) => setForm({ ...form, contactPerson: e.target.value })} />
+              <TextField fullWidth size="small" label="币别" value={form.currency || '选择后自动填入'} disabled />
             </Grid>
             <Grid item xs={6}>
-              <TextField fullWidth size="small" label="联系电话" value={form.contactPhone || ''}
-                onChange={(e) => setForm({ ...form, contactPhone: e.target.value })} />
+              <TextField fullWidth size="small" label="联系人 *" value={form.contactPerson || ''}
+                onChange={(e) => { setForm({ ...form, contactPerson: e.target.value }); setFormErrors({ ...formErrors, contactPerson: undefined }); }}
+                error={!!formErrors.contactPerson} helperText={formErrors.contactPerson || ''} />
+            </Grid>
+            <Grid item xs={6}>
+              <TextField fullWidth size="small" label="联系电话 *" value={form.contactPhone || ''}
+                onChange={(e) => { setForm({ ...form, contactPhone: e.target.value }); setFormErrors({ ...formErrors, contactPhone: undefined }); }}
+                error={!!formErrors.contactPhone} helperText={formErrors.contactPhone || ''} />
             </Grid>
             <Grid item xs={12}>
               <TextField fullWidth size="small" label="地址" value={form.address || ''}
                 onChange={(e) => setForm({ ...form, address: e.target.value })} />
             </Grid>
             <Grid item xs={6}>
-              <TextField fullWidth size="small" type="number" label="信用额度" value={form.creditLimit ?? ''}
-                onChange={(e) => setForm({ ...form, creditLimit: e.target.value === '' ? '' : Number(e.target.value) })}
+              <TextField fullWidth size="small" type="number" label="信用额度 *" value={form.creditLimit ?? ''}
+                onChange={(e) => { setForm({ ...form, creditLimit: e.target.value === '' ? '' : Number(e.target.value) }); setFormErrors({ ...formErrors, creditLimit: undefined }); }}
                 placeholder="0" onFocus={(e) => e.target.select()} inputProps={{ min: 0 }}
+                error={!!formErrors.creditLimit} helperText={formErrors.creditLimit || ''}
                 InputProps={{ startAdornment: <InputAdornment position="start">¥</InputAdornment> }} />
             </Grid>
             <Grid item xs={6}>
-              <TextField fullWidth size="small" type="number" label="账期(天)" value={form.creditPeriod ?? ''}
-                onChange={(e) => setForm({ ...form, creditPeriod: e.target.value === '' ? '' : Number(e.target.value) })}
-                placeholder="30" onFocus={(e) => e.target.select()} inputProps={{ min: 0 }} />
+              <TextField fullWidth size="small" type="number" label="账期(天) *" value={form.creditPeriod ?? ''}
+                onChange={(e) => { setForm({ ...form, creditPeriod: e.target.value === '' ? '' : Number(e.target.value) }); setFormErrors({ ...formErrors, creditPeriod: undefined }); }}
+                placeholder="30" onFocus={(e) => e.target.select()} inputProps={{ min: 0 }}
+                error={!!formErrors.creditPeriod} helperText={formErrors.creditPeriod || ''} />
             </Grid>
             <Grid item xs={6}>
               <TextField select fullWidth size="small" label="状态" value={form.status || 'ACTIVE'}
@@ -439,10 +530,11 @@ export default function CustomerList() {
                   fullWidth
                   size="small"
                   options={employees}
-                  getOptionLabel={(opt) => opt.name || ''}
+                  getOptionLabel={(opt) => `${opt.username || ''}${opt.name ? ' - ' + opt.name : ''}${opt.department ? ' (' + opt.department + ')' : ''}`}
                   value={employees.find(e => e.id === form.salesRepId) || null}
-                  onChange={(_, v) => setForm({ ...form, salesRepId: v?.id || null })}
-                  renderInput={(params) => <TextField {...params} label="业务员" size="small" placeholder="选择负责的业务员" />}
+                  onChange={(_, v) => { setForm({ ...form, salesRepId: v?.id || null }); setFormErrors({ ...formErrors, salesRepId: undefined }); }}
+                  renderInput={(params) => <TextField {...params} label="业务员 *" size="small" placeholder="拥有采购模块权限的用户"
+                    error={!!formErrors.salesRepId} helperText={formErrors.salesRepId || ''} />}
                   isOptionEqualToValue={(opt, val) => opt.id === val?.id}
                 />
               </Grid>
@@ -513,7 +605,7 @@ export default function CustomerList() {
         <DialogActions>
           <Button onClick={() => setConfirmClose(false)}>继续编辑</Button>
           <Button
-            onClick={() => { setConfirmClose(false); setDialog({ open: false, data: null }); }}
+            onClick={() => { setConfirmClose(false); setDialog({ open: false, data: null }); setFormErrors({}); }}
             color="error"
             variant="contained"
           >

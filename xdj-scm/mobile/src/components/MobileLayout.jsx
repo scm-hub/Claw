@@ -73,10 +73,8 @@ export default function MobileLayout() {
   const role = user?.role || 'WAREHOUSE_STAFF';
 
   // 优先使用服务端动态配置，fallback 到本地 navConfig.js
-  const navItems = layoutConfig?.navItems || getNavItems(role);
-  const roleGroupName = layoutConfig?.roleGroup
-    ? (() => { const names = { admin: '管理员', warehouse: '仓储', sales: '销售', purchase: '采购', finance: '财务', logistics: '物流', default: '通用' }; return names[layoutConfig.roleGroup] || layoutConfig.roleGroup; })()
-    : getRoleGroupName(role);
+  const navItems = layoutConfig?.navItems || getNavItems(role) || [];
+  const roleGroupName = layoutConfig?.roleGroup || getRoleGroupName(role);
 
   const currentIdx = navItems.findIndex((n) => n.path === location.pathname);
   const isExtraPage = currentIdx === -1;

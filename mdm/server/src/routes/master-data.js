@@ -9,7 +9,13 @@ const router = Router();
  */
 router.get('/departments', authenticate, async (req, res) => {
   try {
+    const { search } = req.query;
+    const where = {};
+    if (search) {
+      where.name = { contains: search };
+    }
     const departments = await prisma.masterDepartment.findMany({
+      where,
       orderBy: { sortOrder: 'asc' },
     });
     res.json({ success: true, data: departments });

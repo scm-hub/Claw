@@ -97,4 +97,52 @@ export async function closePortalDbPool() {
   }
 }
 
-export default { getPool, getScmModuleUserEmails, closePortalDbPool };
+/**
+ * 获取指定用户的 SCM 模块权限列表
+ * 从 Portal DB 的 user_role → role_permission 查询
+ *
+ * @param {string} userEmail - 用户邮箱
+ * @returns {{ modules: string[], isSystemAdmin: boolean }}
+ */
+export async function getUserScmPermissions(userEmail) {
+  const db = getPool();
+
+  // 1. 查找用户的角色
+  const [userRoles] = await db.execute(
+    `SELECT ur.roleId, r.isSystem
+     FROM user_role ur
+     JOIN role r ON ur.roleId = r.id
+     WHERE ur.userEmail = ?`,
+    [userEmail],
+  );
+
+  if (userRoles.length === 0) {
+    return { modules: [], isSystemAdmin: false };
+  }
+
+  // 检查是否为系统管理员
+  const isSystemAdmin = userRoles.some((r) => r.isSystem === 1);
+  if (isSystemAdmin) {
+    return { modules: ['*'], isSystemAdmin: true };
+  }
+
+  // 2. 获取 SCM 模块权限
+  const roleIds = userRoles.map((r) => r.roleId);
+  const placeholders = roleIds.map(() => '?').join(',');
+
+  const [perms] = await db.execute(
+    `SELECT DISTINCT rp.moduleCode
+     FROM role_permission rp
+     WHERE rp.roleId IN (${placeholders})
+       AND rp.systemCode = 'scm'
+       AND rp.deletedAt IS NULL`,
+    roleIds,
+  );
+
+  return {
+    modules: perms.map((p) => p.moduleCode),
+    isSystemAdmin: false,
+  };
+}
+
+export default { getPool, getScmModuleUserEmails, getUserScmPermissions, closePortalDbPool };

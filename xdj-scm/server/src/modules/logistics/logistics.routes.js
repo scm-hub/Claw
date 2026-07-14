@@ -494,25 +494,53 @@ router.put('/shipping-orders/:id/confirm-shipment', authorize(ROLES.SUPER_ADMIN,
       data: { shippingStatus: 'SHIPPED', shippingDate: new Date() },
     });
 
-    // 3. 按实际装车数量出库（actualQty是销售单位，需折算为基准单位扣库存）
-    const soItems = shipping.salesOrder?.items || [];
-    for (const it of items) {
-      const actualQty = Number(it.actualQty) || 0; // 销售单位数量（如：盒）
-      if (actualQty <= 0) continue; // 装车数量为0的跳过出库
+    // 3. 出库入库记录由最终确认按钮触发（/final-confirm）
+    res.json({ success: true, message: '发货状态已更新', data: { shippingNo: shipping.shippingNo } });
+  } catch (err) { next(err); }
+});
 
-      const soItem = soItems.find(soi => soi.id === it.salesOrderItemId);
+// 最终确认：三个状态都完成后，推送出入库记录到仓储WMS
+router.put('/shipping-orders/:id/final-confirm', authorize(ROLES.SUPER_ADMIN, ROLES.LOGISTICS_STAFF, ROLES.WAREHOUSE_STAFF), async (req, res, next) => {
+  try {
+    const shipping = await prisma.shippingOrder.findUnique({
+      where: { id: req.params.id },
+      include: {
+        salesOrder: { include: { items: { include: { material: true, batch: true } } } },
+        shippingItems: true,
+      },
+    });
+    if (!shipping) return res.status(404).json({ success: false, message: '发货单不存在' });
+
+    // 三个条件必须全部满足
+    if (shipping.logisticsStatus !== 'ARRANGED') return res.status(400).json({ success: false, message: '请先安排物流' });
+    if (shipping.stockingStatus !== 'READY') return res.status(400).json({ success: false, message: '请先完成备货' });
+    if (shipping.shippingStatus !== 'SHIPPED') return res.status(400).json({ success: false, message: '请先确认发货' });
+
+    if (!shipping.shippingItems || shipping.shippingItems.length === 0) {
+      return res.status(400).json({ success: false, message: '发货单没有装车数据' });
+    }
+
+    const warehouseId = shipping.warehouseId;
+    const soItems = shipping.salesOrder?.items || [];
+
+    // 按实际装车数量出库并创建出入库记录
+    for (const sItem of shipping.shippingItems) {
+      const actualQty = Number(sItem.actualQty) || 0;
+      if (actualQty <= 0) continue;
+
+      const soItem = soItems.find(soi => soi.id === sItem.salesOrderItemId);
       if (!soItem) continue;
 
-      // 将销售单位数量折算为基准单位数量（如：510盒 × 0.25 = 127.5斤）
       const mat = soItem.material;
-      const baseQty = Number(salesQtyToBase(actualQty, mat || {}));
+      if (!mat) continue;
+      const baseQty = Number(salesQtyToBase(actualQty, mat));
 
-      // 检查并扣减物理库存 + 释放锁定（用基准单位）
+      // 扣减库存
       const inv = await prisma.inventory.findFirst({
-        where: { materialId: it.materialId, warehouseId },
+        where: { materialId: sItem.materialId, warehouseId },
       });
       if (!inv || inv.qty < baseQty) {
-        console.warn(`[出库警告] 发货单 ${shipping.shippingNo} 物料 ${mat?.name || it.materialId} 库存不足（当前${inv?.qty || 0}，实际装车${actualQty}${mat?.salesUnit || ''}→折算${baseQty}${mat?.unit || ''}）`);
+        console.warn(`[出库警告] 发货单 ${shipping.shippingNo} 物料 ${mat.name} 库存不足（当前${inv?.qty || 0}，需${baseQty}${mat.unit}）`);
       }
       if (inv) {
         await prisma.inventory.update({
@@ -524,17 +552,16 @@ router.put('/shipping-orders/:id/confirm-shipment', authorize(ROLES.SUPER_ADMIN,
         });
       } else {
         await prisma.inventory.create({
-          data: { materialId: it.materialId, warehouseId, qty: -baseQty, lockedQty: 0 },
+          data: { materialId: sItem.materialId, warehouseId, qty: -baseQty, lockedQty: 0 },
         });
       }
 
-      // 创建出库记录（qty用基准单位数量）
-      const movementNo = genNo('OUT');
+      // 创建出库记录
       await prisma.stockMovement.create({
         data: {
-          movementNo,
+          movementNo: genNo('OUT'),
           warehouseId,
-          materialId: it.materialId,
+          materialId: sItem.materialId,
           batchId: soItem.batchId || null,
           gradeId: soItem.gradeId || null,
           movementType: 'SALES_OUTBOUND',
@@ -544,11 +571,11 @@ router.put('/shipping-orders/:id/confirm-shipment', authorize(ROLES.SUPER_ADMIN,
           refType: 'SHIPPING_ORDER',
           refId: shipping.id,
           operatorId: req.user?.employeeId || null,
-          remark: `发货单 - ${shipping.shippingNo}（销售订单 ${shipping.salesOrder?.orderNo || '-'}，实际装车${actualQty}${mat?.salesUnit || ''}，折算${baseQty}${mat?.unit || ''}）`,
+          remark: `发货单 - ${shipping.shippingNo}（销售订单 ${shipping.salesOrder?.orderNo || '-'}，${actualQty}${mat.salesUnit || ''}→${baseQty}${mat.unit}）`,
         },
       });
 
-      // 更新批次剩余量 + 创建追溯记录（用基准单位）
+      // 批次追溯
       if (soItem.batchId) {
         await prisma.batch.update({
           where: { id: soItem.batchId },
@@ -560,17 +587,28 @@ router.put('/shipping-orders/:id/confirm-shipment', authorize(ROLES.SUPER_ADMIN,
             trackingType: 'OUTBOUND',
             refType: 'SHIPPING_ORDER',
             refId: shipping.id,
-            fromLocation: null,
-            toLocation: null,
             qty: baseQty,
             operatorId: req.user?.employeeId || null,
-            remark: `发货出库 ${shipping.shippingNo}（${actualQty}${mat?.salesUnit || ''}→${baseQty}${mat?.unit || ''}）`,
+            remark: `发货出库 ${shipping.shippingNo}`,
           },
         });
       }
     }
 
-    res.json({ success: true, message: '发货确认成功', data: { shippingNo: shipping.shippingNo } });
+    // 更新状态为已送达
+    await prisma.shippingOrder.update({
+      where: { id: shipping.id },
+      data: { status: 'DELIVERED' },
+    });
+    // 同步更新销售订单状态
+    if (shipping.salesOrderId) {
+      await prisma.salesOrder.update({
+        where: { id: shipping.salesOrderId },
+        data: { status: 'DELIVERED' },
+      });
+    }
+
+    res.json({ success: true, message: '最终确认完成，出入库记录已推送至仓储WMS' });
   } catch (err) { next(err); }
 });
 

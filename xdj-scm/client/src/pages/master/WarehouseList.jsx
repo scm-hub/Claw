@@ -4,6 +4,7 @@ import {
   TableContainer, TableHead, TableRow, Paper, IconButton, Dialog, DialogTitle,
   DialogContent, DialogActions, Grid, MenuItem, InputAdornment, TablePagination,
   Chip, Stack, FormControl, InputLabel, Select, Fade, Tooltip, Switch,
+  Autocomplete, CircularProgress, FormHelperText,
 } from '@mui/material';
 import {
   Add, Edit, Delete, Search, RestartAlt, FilterList, Warehouse, CheckCircle,
@@ -21,11 +22,16 @@ export default function WarehouseList() {
   const [coldFilter, setColdFilter] = useState('');
   const [dialog, setDialog] = useState({ open: false, data: null });
   const [form, setForm] = useState({});
+  const [formErrors, setFormErrors] = useState({});
   const [refDialog, setRefDialog] = useState({ open: false, message: '', references: [] });
   const [confirmClose, setConfirmClose] = useState(false);
   const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0, cold: 0 });
   const [loading, setLoading] = useState(false);
   const [warehouseUsers, setWarehouseUsers] = useState([]);
+  const [kdWarehouses, setKdWarehouses] = useState([]);
+  const [kdWarehouseLoading, setKdWarehouseLoading] = useState(false);
+  const [kdWarehouseSelected, setKdWarehouseSelected] = useState(null);
+  const [kdWarehouseInput, setKdWarehouseInput] = useState('');
 
   const loadList = useCallback(async () => {
     setLoading(true);
@@ -48,6 +54,15 @@ export default function WarehouseList() {
       const res = await api.get('/master/warehouse-users');
       setWarehouseUsers(res.data || []);
     } catch (err) { console.error('加载仓管员用户失败', err); }
+  }, []);
+
+  // 搜索金蝶仓库（300ms 防抖）
+  const searchKdWarehouses = useCallback(async (kw) => {
+    setKdWarehouseLoading(true);
+    try {
+      const res = await api.get(`/master/kingdee-warehouses?keyword=${encodeURIComponent(kw)}&limit=50`);
+      setKdWarehouses(res.data || []);
+    } catch (err) { console.error(err); } finally { setKdWarehouseLoading(false); }
   }, []);
 
   useEffect(() => { loadList(); loadWarehouseUsers(); }, [loadList, loadWarehouseUsers]);
@@ -76,10 +91,28 @@ export default function WarehouseList() {
 
   const handleOpen = (data = null) => {
     setDialog({ open: true, data });
-    setForm(data || { name: '', address: '', isColdStorage: false, isRemote: false, transferLeadDays: null, status: 'ACTIVE' });
+    if (data) {
+      setForm(data);
+      // 编辑模式：用当前仓库的 name/code 构造选中对象
+      setKdWarehouseSelected(data.name ? { code: data.code, name: data.name } : null);
+      setKdWarehouseInput(data.name || '');
+    } else {
+      setForm({ name: '', address: '', isColdStorage: false, isRemote: false, transferLeadDays: null, status: 'ACTIVE' });
+      setKdWarehouseSelected(null);
+      setKdWarehouseInput('');
+    }
   };
 
   const handleSave = async () => {
+    // 必填校验
+    const errors = {};
+    if (!form.name?.trim()) errors.name = '必填';
+    if (!form.warehouseManagerId) errors.warehouseManagerId = '必填';
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      return;
+    }
+    setFormErrors({});
     try {
       if (dialog.data) await api.put(`/master/warehouses/${dialog.data.id}`, form);
       else await api.post('/master/warehouses', form);
@@ -110,6 +143,7 @@ export default function WarehouseList() {
     if (hasFormChanges()) {
       setConfirmClose(true);
     } else {
+      setFormErrors({});
       setDialog({ open: false, data: null });
     }
   };
@@ -376,20 +410,81 @@ export default function WarehouseList() {
               <TextField fullWidth size="small" label="仓库编码" value={form.code || '保存后自动生成'} disabled />
             </Grid>
             <Grid item xs={6}>
-              <TextField fullWidth size="small" label="仓库名称 *" value={form.name || ''}
-                onChange={(e) => setForm({ ...form, name: e.target.value })} />
+              <Autocomplete
+                fullWidth
+                size="small"
+                options={kdWarehouses}
+                getOptionLabel={(w) => w.name || ''}
+                isOptionEqualToValue={(opt, val) => opt.code === val?.code}
+                inputValue={kdWarehouseInput}
+                onInputChange={(_, v, reason) => {
+                  setKdWarehouseInput(v);
+                  if (reason === 'input') {
+                    // 防抖搜索
+                    clearTimeout(window._kdWhTimer);
+                    window._kdWhTimer = setTimeout(() => searchKdWarehouses(v), 300);
+                  }
+                }}
+                value={kdWarehouseSelected}
+                onChange={(_, v) => {
+                  setKdWarehouseSelected(v);
+                  if (v) {
+                    setForm({ ...form, name: v.name, code: v.code, address: v.address || form.address });
+                  } else {
+                    setForm({ ...form, name: '', code: '' });
+                  }
+                  setFormErrors({ ...formErrors, name: undefined });
+                }}
+                loading={kdWarehouseLoading}
+                loadingText="加载金蝶仓库中..."
+                noOptionsText={kdWarehouseLoading ? '加载中...' : '无匹配金蝶仓库'}
+                openOnFocus
+                onOpen={() => {
+                  if (kdWarehouses.length === 0 && !kdWarehouseLoading) searchKdWarehouses('');
+                }}
+                filterOptions={(x) => x}
+                renderOption={(props, w) => (
+                  <li {...props}>
+                    <Typography variant="body2">{w.name}</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>({w.code})</Typography>
+                    {w.useOrgName && <Chip label={w.useOrgName} size="small" sx={{ ml: 1 }} />}
+                  </li>
+                )}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="仓库名称 *"
+                    placeholder="搜索金蝶仓库名称或编码"
+                    error={!!formErrors.name}
+                    helperText={formErrors.name || ''}
+                    InputProps={{
+                      ...params.InputProps,
+                      endAdornment: (
+                        <>
+                          {kdWarehouseLoading ? <CircularProgress size={20} /> : null}
+                          {params.InputProps.endAdornment}
+                        </>
+                      ),
+                    }}
+                  />
+                )}
+                noOptionsText="未找到匹配的金蝶仓库"
+              />
             </Grid>
             <Grid item xs={12}>
               <TextField fullWidth size="small" label="地址" value={form.address || ''}
                 onChange={(e) => setForm({ ...form, address: e.target.value })} />
             </Grid>
             <Grid item xs={6}>
-              <FormControl fullWidth size="small">
-                <InputLabel>仓管员</InputLabel>
+              <FormControl fullWidth size="small" error={!!formErrors.warehouseManagerId}>
+                <InputLabel>仓管员 *</InputLabel>
                 <Select
-                  label="仓管员"
+                  label="仓管员 *"
                   value={form.warehouseManagerId || ''}
-                  onChange={(e) => setForm({ ...form, warehouseManagerId: e.target.value })}
+                  onChange={(e) => {
+                    setForm({ ...form, warehouseManagerId: e.target.value });
+                    setFormErrors({ ...formErrors, warehouseManagerId: undefined });
+                  }}
                 >
                   <MenuItem value="">未指定</MenuItem>
                   {warehouseUsers.map((u) => (
@@ -398,18 +493,19 @@ export default function WarehouseList() {
                     </MenuItem>
                   ))}
                 </Select>
+                {formErrors.warehouseManagerId && <FormHelperText>{formErrors.warehouseManagerId}</FormHelperText>}
               </FormControl>
             </Grid>
             <Grid item xs={6}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                <Switch checked={!!form.isColdStorage} onChange={(e) => setForm({ ...form, isColdStorage: e.target.checked })} />
-                <Typography variant="body2">冷库</Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={6}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                <Switch checked={!!form.isRemote} onChange={(e) => setForm({ ...form, isRemote: e.target.checked })} />
-                <Typography variant="body2">异地外仓</Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, mt: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Switch checked={!!form.isColdStorage} onChange={(e) => setForm({ ...form, isColdStorage: e.target.checked })} />
+                  <Typography variant="body2">冷库</Typography>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Switch checked={!!form.isRemote} onChange={(e) => setForm({ ...form, isRemote: e.target.checked })} />
+                  <Typography variant="body2">异地外仓</Typography>
+                </Box>
               </Box>
             </Grid>
             {form.isRemote && (
@@ -495,7 +591,7 @@ export default function WarehouseList() {
         <DialogActions>
           <Button onClick={() => setConfirmClose(false)}>继续编辑</Button>
           <Button
-            onClick={() => { setConfirmClose(false); setDialog({ open: false, data: null }); }}
+            onClick={() => { setConfirmClose(false); setFormErrors({}); setDialog({ open: false, data: null }); }}
             color="error"
             variant="contained"
           >

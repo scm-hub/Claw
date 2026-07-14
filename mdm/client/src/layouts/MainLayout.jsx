@@ -24,6 +24,10 @@ import HubIcon from '@mui/icons-material/Hub';
 import BusinessIcon from '@mui/icons-material/Business';
 import StoreIcon from '@mui/icons-material/Store';
 import InventoryIcon from '@mui/icons-material/Inventory';
+import WarehouseIcon from '@mui/icons-material/Warehouse';
+import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
+import CategoryIcon from '@mui/icons-material/Category';
+import GradingIcon from '@mui/icons-material/Grading';
 import useAuthStore, { hasModule } from '../store/auth';
 
 const drawerWidth = 240;
@@ -53,6 +57,24 @@ const menuItems = [
     text: '金蝶物料',
     path: '/kingdee-materials',
     icon: <InventoryIcon />,
+    module: 'master-data-departments',
+  },
+  {
+    text: '金蝶仓库',
+    path: '/kingdee-warehouses',
+    icon: <WarehouseIcon />,
+    module: 'master-data-departments',
+  },
+  {
+    text: '金蝶收发类别',
+    path: '/kingdee-receive-send-types',
+    icon: <SwapHorizIcon />,
+    module: 'master-data-departments',
+  },
+  {
+    text: '金蝶物料等级',
+    path: '/kingdee-material-grades',
+    icon: <GradingIcon />,
     module: 'master-data-departments',
   },
   { text: '同步日志', path: '/sync-log', icon: <SyncHistoryIcon />, module: 'master-data-sync' },

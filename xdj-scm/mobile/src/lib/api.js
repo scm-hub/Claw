@@ -9,14 +9,14 @@ import { Capacitor } from '@capacitor/core';
 function getBaseUrl() {
   if (Capacitor.isNativePlatform()) {
     // 生产环境请改为实际服务器地址
-    return 'http://111.17.201.197:5174/mobile/api';
+    return 'http://111.17.201.197:5174/scm/api';
   }
   // Web 开发/预览模式
   const base = import.meta.env.BASE_URL.replace(/\/$/, '');
   return base + '/api';
 }
 
-const BASE_URL = getBaseUrl();
+export const BASE_URL = getBaseUrl();
 
 async function request(url, options = {}) {
   const token = useAuthStore.getState().token;

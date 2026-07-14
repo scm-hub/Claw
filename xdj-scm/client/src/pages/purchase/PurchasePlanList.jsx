@@ -958,9 +958,9 @@ export default function PurchasePlanList() {
                 <TableCell sx={{ width: 180 }}>供应商</TableCell>
                 <TableCell sx={{ width: 100 }}>单价</TableCell>
                 <TableCell sx={{ width: 100 }}>实际采购数量</TableCell>
-                <TableCell sx={{ width: 100 }}>等级</TableCell>
+                <TableCell sx={{ width: 120 }}>等级</TableCell>
               </>}
-              <TableCell sx={{ width: 160 }}>到货日期</TableCell>
+              <TableCell sx={{ width: 180 }}>到货日期</TableCell>
               <TableCell sx={{ width: 140 }}>备注</TableCell>
               {dialog.data?.status !== 'APPROVED' && <TableCell sx={{ width: 50 }}>操作</TableCell>}
             </TableRow></TableHead>
@@ -1043,13 +1043,13 @@ export default function PurchasePlanList() {
                         inputProps={{ min: 0 }}
                         sx={{ width: 90 }} />
                     </TableCell>
-                    <TableCell sx={{ width: 100 }}>
+                    <TableCell sx={{ width: 120 }}>
                       <Select
                         size="small"
                         value={it.gradeId || ''}
                         onChange={(e) => updateItem(idx, 'gradeId', e.target.value)}
                         displayEmpty
-                        sx={{ width: 90, height: 32 }}
+                        sx={{ width: 110, height: 32 }}
                       >
                         <MenuItem value="">请选择</MenuItem>
                         {(materials.find((m) => m.id === it.materialId)?.materialGrades || []).map((mg) => (
@@ -1058,7 +1058,7 @@ export default function PurchasePlanList() {
                       </Select>
                     </TableCell>
                   </>}
-                  <TableCell sx={{ width: 140 }}><TextField size="small" type="date" InputLabelProps={{ shrink: true }} value={it.expectedDate || ''} onChange={(e) => updateItem(idx, 'expectedDate', e.target.value)} disabled={dialog.data?.status === 'APPROVED'} sx={{ width: 130 }} /></TableCell>
+                  <TableCell sx={{ width: 180 }}><TextField size="small" type="date" InputLabelProps={{ shrink: true }} value={it.expectedDate || ''} onChange={(e) => updateItem(idx, 'expectedDate', e.target.value)} disabled={dialog.data?.status === 'APPROVED'} sx={{ width: 160 }} /></TableCell>
                   <TableCell sx={{ width: 140 }}><TextField size="small" value={it.remark || ''} onChange={(e) => updateItem(idx, 'remark', e.target.value)} sx={{ width: 130 }} /></TableCell>
                   {dialog.data?.status !== 'APPROVED' && <TableCell sx={{ width: 50 }}><IconButton size="small" color="error" onClick={() => removeItem(idx)}><Delete fontSize="small" /></IconButton></TableCell>}
                 </TableRow>

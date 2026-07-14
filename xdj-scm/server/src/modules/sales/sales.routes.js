@@ -1324,7 +1324,7 @@ router.put('/orders/:id/approve', async (req, res, next) => {
 
     // 审核通过后自动生成发货单（如果尚未存在）
     let shippingOrder = null;
-    const existingShipping = await prisma.shippingOrder.findUnique({ where: { salesOrderId: req.params.id } });
+    const existingShipping = await prisma.shippingOrder.findFirst({ where: { salesOrderId: req.params.id } });
     if (!existingShipping) {
       shippingOrder = await prisma.shippingOrder.create({
         data: {

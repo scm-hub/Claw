@@ -68,9 +68,9 @@ export const syncManagerRole = async (newManagerId, oldManagerId) => {
 
 export const listEmployees = async ({ page = 1, pageSize = 10, search, departmentId, status }) => {
   const where = {
-    // 只隐藏工号为 EMP001 的管理员账号
+    // 只隐藏工号为 XDJ000000 的管理员账号
     NOT: {
-      employeeNo: 'EMP001',
+      employeeNo: 'XDJ000000',
     },
   };
   if (search) {
@@ -169,7 +169,7 @@ export const createEmployee = async (data) => {
   const { password, accountPassword: reqAccountPassword, accountRole: reqAccountRole } = data;
   // Auto-generate employee number
   const count = await prisma.employee.count();
-  const employeeNo = `EMP${String(count + 1).padStart(3, '0')}`;
+  const employeeNo = `XDJ${String(count + 1).padStart(6, '0')}`;
 
   const emp = await prisma.employee.create({
     data: {
@@ -453,9 +453,9 @@ export const getManagedDepartments = async (employeeId) => {
 /* ========= 导出员工为 Excel ========= */
 export const exportEmployees = async ({ search, departmentId, status, ids } = {}) => {
   const where = {
-    // 只隐藏工号为 EMP001 的管理员账号
+    // 只隐藏工号为 XDJ000000 的管理员账号
     NOT: {
-      employeeNo: 'EMP001',
+      employeeNo: 'XDJ000000',
     },
   };
   if (ids) {
@@ -584,7 +584,7 @@ export const importEmployees = async (buffer) => {
 
   // 获取当前最大工号
   const lastEmp = await prisma.employee.findFirst({ orderBy: { employeeNo: 'desc' } });
-  let nextNo = lastEmp ? parseInt(lastEmp.employeeNo.replace('EMP', ''), 10) + 1 : 1;
+  let nextNo = lastEmp ? parseInt(lastEmp.employeeNo.replace('XDJ', ''), 10) + 1 : 1;
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -652,7 +652,7 @@ export const importEmployees = async (buffer) => {
         accommodationStartDate = new Date(accommodationStartDateRaw);
       }
 
-      const employeeNo = `EMP${String(nextNo).padStart(3, '0')}`;
+      const employeeNo = `XDJ${String(nextNo).padStart(6, '0')}`;
       nextNo++;
 
       await prisma.employee.create({

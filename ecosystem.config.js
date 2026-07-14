@@ -100,6 +100,7 @@ module.exports = {
       cwd: './mdm/server',
       script: 'src/index.js',
       interpreter: 'node',
+      instances: 1,
       env: {
         NODE_ENV: 'production',
         PORT: 4005,

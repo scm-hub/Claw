@@ -35,18 +35,16 @@ export default function Dashboard() {
   const role = user?.role || 'WAREHOUSE_STAFF';
 
   // 仪表盘卡片：优先服务端动态配置，fallback 本地
-  const cards = layoutConfig?.dashboardCards || getDashboardCards(role);
-  const quickActions = layoutConfig?.quickActions || getQuickActions(role);
-  const roleGroupName = layoutConfig?.roleGroup
-    ? ({ admin: '管理员', warehouse: '仓储', sales: '销售', purchase: '采购', finance: '财务', logistics: '物流', default: '通用' }[layoutConfig.roleGroup] || layoutConfig.roleGroup)
-    : getRoleGroupName(role);
+  const cards = layoutConfig?.dashboardCards || getDashboardCards(role) || [];
+  const quickActions = layoutConfig?.quickActions || getQuickActions(role) || [];
+  const roleGroupName = layoutConfig?.roleGroup || getRoleGroupName(role);
 
-  // 拉取布局配置（如果 store 里没有）
+  // 拉取布局配置（每次进入首页都重新拉取，确保拿到最新配置）
   useEffect(() => {
-    if (!layoutConfig && user?.role) {
+    if (user?.role) {
       fetchLayoutConfig(user.role).catch(() => {});
     }
-  }, [layoutConfig, user?.role, fetchLayoutConfig]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 拉取分析数据
   useEffect(() => {

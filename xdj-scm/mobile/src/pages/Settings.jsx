@@ -17,21 +17,24 @@ import {
 } from '../lib/biometric';
 import { getRoleGroupName } from '../config/navConfig';
 
-// 角色中文映射
+// 角色中文映射（与权限管理→角色管理一致）
 const ROLE_NAMES = {
   SUPER_ADMIN: '超级管理员',
-  WAREHOUSE_MANAGER: '仓库经理',
+  WAREHOUSE_MANAGER: '仓库管理员',
   WAREHOUSE_STAFF: '仓库管理员',
   SALES_MANAGER: '销售经理',
-  SALES_STAFF: '销售员',
-  PURCHASE_MANAGER: '采购经理',
+  SALES_STAFF: '销售经理',
+  PURCHASE_MANAGER: '采购员',
   PURCHASE_STAFF: '采购员',
-  FINANCE_MANAGER: '财务经理',
-  QUALITY_STAFF: '质检员',
-  LOGISTICS_STAFF: '物流员',
-  CONTRACT_MANAGER: '合同管理员',
-  HR_ADMIN: '人事管理员',
-  HR: '人事专员',
+  FINANCE_MANAGER: '经理',
+  FINANCE_STAFF: '经理',
+  QUALITY_STAFF: '仓库管理员',
+  LOGISTICS_STAFF: '普通员工',
+  CONTRACT_MANAGER: '经理',
+  HR_ADMIN: 'HR管理员',
+  HR: 'HR管理员',
+  COST_MANAGER: '经理',
+  SALES_REP: '销售经理',
 };
 
 export default function Settings() {

@@ -10,6 +10,9 @@ import SyncLog from './pages/SyncLog';
 import KingdeeCustomers from './pages/KingdeeCustomers';
 import KingdeeSuppliers from './pages/KingdeeSuppliers';
 import KingdeeMaterials from './pages/KingdeeMaterials';
+import KingdeeWarehouses from './pages/KingdeeWarehouses';
+import KingdeeReceiveSendTypes from './pages/KingdeeReceiveSendTypes';
+import KingdeeMaterialGrades from './pages/KingdeeMaterialGrades';
 
 function ProtectedRoute({ children }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
@@ -37,6 +40,9 @@ export default function App() {
           <Route path="kingdee-customers" element={<KingdeeCustomers />} />
           <Route path="kingdee-suppliers" element={<KingdeeSuppliers />} />
           <Route path="kingdee-materials" element={<KingdeeMaterials />} />
+          <Route path="kingdee-warehouses" element={<KingdeeWarehouses />} />
+          <Route path="kingdee-receive-send-types" element={<KingdeeReceiveSendTypes />} />
+          <Route path="kingdee-material-grades" element={<KingdeeMaterialGrades />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

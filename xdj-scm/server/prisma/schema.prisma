@@ -273,6 +273,7 @@ model Material {
   purchaseConversionFactor Decimal @default(1) @db.Decimal(10, 4) // 1个采购单位=?个基准单位（如1斤=500克→系数500）
   salesConversionFactor    Decimal @default(1) @db.Decimal(10, 4) // 1个销售单位=?个基准单位（如1克=1克→系数1）
   groupId            String?                              // 所属产品组ID（可选，无组则为独立物料）
+  materialGroupName  String?                              // 金蝶物料分组名称
   category           String?
   shelfLifeDays      Int      @default(0)
   storageTempMin     Decimal? @db.Decimal(5, 1)
@@ -336,6 +337,7 @@ model Customer {
   contactPerson String?
   contactPhone String?
   address       String?
+  currency      String?
   salesRepId    String?
   departmentId  String?
   creditLimit   Decimal  @default(0) @db.Decimal(14, 2)
@@ -584,6 +586,9 @@ model PurchaseReceipt {
   qcResult         String    @default("PASS")
   qcAttachment     String?
   status           String    @default("CONFIRMED")
+  kingdeeOrderNo   String?   @map("kingdee_order_no")
+  kingdeeInboundNo String?   @map("kingdee_inbound_no")
+  kingdeeSyncStatus String   @default("PENDING") @map("kingdee_sync_status")
   remark           String?   @db.Text
   createdAt        DateTime  @default(now())
 

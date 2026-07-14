@@ -8,10 +8,11 @@ import {
   pullCustomersFromKingdee,
   pullSuppliersFromKingdee,
   pullMaterialsFromKingdee,
-  pushDepartmentsToKingdee,
-  pushEmployeesToKingdee,
+  pullWarehousesFromKingdee,
+  pullReceiveSendTypesFromKingdee,
   updateKingdeeSyncTime,
 } from './kingdee-sync.js';
+import { reLoginKingdee } from './kingdee-adapter.js';
 
 const SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 小时
 const SYNC_HOUR = 3; // 凌晨 3 点
@@ -34,23 +35,37 @@ async function runKingdeeSync() {
   });
 
   try {
-    // 1. 拉取金蝶基础数据
+    // 重新登录，防止 session 过期
+    await reLoginKingdee();
+
+    // 拉取金蝶基础数据
     const pullResults = {
       customers: await pullCustomersFromKingdee(),
       suppliers: await pullSuppliersFromKingdee(),
       materials: await pullMaterialsFromKingdee(),
+      warehouses: await pullWarehousesFromKingdee(),
+      receiveSendTypes: await pullReceiveSendTypesFromKingdee(),
     };
 
-    // 【已禁用】不推送数据到金蝶
     const totalPull =
-      pullResults.customers.total + pullResults.suppliers.total + pullResults.materials.total;
+      (pullResults.customers.total || 0) +
+      (pullResults.suppliers.total || 0) +
+      (pullResults.materials.total || 0) +
+      (pullResults.warehouses.total || 0) +
+      (pullResults.receiveSendTypes.total || 0);
+    const successCount =
+      (pullResults.customers.created || 0) + (pullResults.customers.updated || 0) +
+      (pullResults.suppliers.created || 0) + (pullResults.suppliers.updated || 0) +
+      (pullResults.materials.created || 0) + (pullResults.materials.updated || 0) +
+      (pullResults.warehouses.created || 0) + (pullResults.warehouses.updated || 0) +
+      (pullResults.receiveSendTypes.created || 0) + (pullResults.receiveSendTypes.updated || 0);
 
     await prisma.syncLog.update({
       where: { id: log.id },
       data: {
         status: 'SUCCESS',
         totalRecords: totalPull,
-        successCount: totalPull,
+        successCount,
         failedCount: 0,
         details: JSON.stringify({ pull: pullResults }),
         finishedAt: new Date(),

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Box, Card, CardContent, Typography, Button, TextField, Table, TableBody,
   TableCell, TableContainer, TableHead, TableRow, Paper, IconButton, Dialog,
@@ -49,6 +49,13 @@ export default function MaterialList() {
 
   // 删除引用详情弹窗
   const [refDialog, setRefDialog] = useState({ open: false, message: '', references: [] });
+
+  // 金蝶物料下拉数据源（点击展开加载，输入时远程搜索）
+  const [kdMaterials, setKdMaterials] = useState([]);
+  const [kdLoading, setKdLoading] = useState(false);
+  const [kdInput, setKdInput] = useState('');
+  const [kdSelected, setKdSelected] = useState(null);
+  const kdSearchTimer = useRef(null);
 
   // 状态中文映射
   const STATUS_LABELS = {
@@ -107,6 +114,24 @@ export default function MaterialList() {
     } catch (err) { console.error('loadMaterialGrades error:', err); }
   }, []);
 
+  // 加载金蝶物料列表（支持关键字搜索）
+  const loadKingdeeMaterials = useCallback(async (keyword = '', limit = 500) => {
+    setKdLoading(true);
+    try {
+      const data = await api.get('/master/kingdee-materials', { params: { keyword, limit } });
+      setKdMaterials(data.data || []);
+    } catch { /* ignore */ }
+    finally { setKdLoading(false); }
+  }, []);
+
+  // 弹窗内关键字输入防抖搜索（确保中文输入后也能正确过滤）
+  const searchKingdeeMaterials = useCallback((keyword) => {
+    if (kdSearchTimer.current) clearTimeout(kdSearchTimer.current);
+    kdSearchTimer.current = setTimeout(() => {
+      loadKingdeeMaterials(keyword, 200);
+    }, 300);
+  }, [loadKingdeeMaterials]);
+
   const loadSummary = useCallback(async () => {
     try {
       const [all, active] = await Promise.all([
@@ -155,18 +180,23 @@ export default function MaterialList() {
       setConfirmClose(true);
     } else {
       setDialog({ open: false, data: null });
+      setFormErrors({});
     }
   };
 
   const handleOpen = (data = null) => {
     setDialog({ open: true, data });
+    loadKingdeeMaterials('', 500); // 加载金蝶物料到本地下拉
+    // 重置金蝶物料选择状态
+    setKdSelected(data ? { code: data.code, name: data.name, _kdCode: data.code } : null);
+    setKdInput(data?.name || '');
     // 编辑模式：取已有等级ID列表
     const existingGradeIds = data?.materialGrades?.map(mg => mg.gradeId) || [];
     setForm(data ? {
       ...data,
       gradeIds: existingGradeIds,
     } : {
-      name: '', spec: '', unit: '', category: '', shelfLifeDays: '',
+      name: '', spec: '', unit: '', category: '', shelfLifeDays: '', code: '',
       status: 'ACTIVE',
       barcode: '', storageTempMin: '', storageTempMax: '',
       initialPurchasePrice: '',
@@ -174,15 +204,29 @@ export default function MaterialList() {
       purchaseLeadTime: '',
       purchaseUnit: '', salesUnit: '',
       purchaseConversionFactor: '', salesConversionFactor: '',
-      groupId: '',
+      materialGroupName: '',
       gradeIds: [],
     });
   };
 
+  // 表单校验错误集合
+  const [formErrors, setFormErrors] = useState({});
+
   const handleSave = async () => {
-    if (!form.name?.trim()) { alert('请输入产品名称'); return; }
+    const errors = {};
+    if (!form.name?.trim()) errors.name = '请输入产品名称';
+    if (form.purchaseConversionFactor === '' || form.purchaseConversionFactor === null || form.purchaseConversionFactor === undefined) errors.purchaseConversionFactor = '必填';
+    if (form.salesConversionFactor === '' || form.salesConversionFactor === null || form.salesConversionFactor === undefined) errors.salesConversionFactor = '必填';
+    if (form.shelfLifeDays === '' || form.shelfLifeDays === null || form.shelfLifeDays === undefined) errors.shelfLifeDays = '必填';
+    if (form.purchaseLeadTime === '' || form.purchaseLeadTime === null || form.purchaseLeadTime === undefined) errors.purchaseLeadTime = '必填';
+    if (form.initialPurchasePrice === '' || form.initialPurchasePrice === null || form.initialPurchasePrice === undefined) errors.initialPurchasePrice = '必填';
+    if (form.guidePercent === '' || form.guidePercent === null || form.guidePercent === undefined) errors.guidePercent = '必填';
+    setFormErrors(errors);
+    if (Object.keys(errors).length > 0) return;
     try {
       const payload = { ...form };
+      // 移除前端临时字段，避免传入后端保存
+      delete payload._kdCode;
       // 数值类型转换
       payload.shelfLifeDays = payload.shelfLifeDays === '' || payload.shelfLifeDays === undefined ? 0 : Number(payload.shelfLifeDays);
       payload.initialPurchasePrice = payload.initialPurchasePrice === '' || payload.initialPurchasePrice === undefined ? 0 : Number(payload.initialPurchasePrice);
@@ -379,7 +423,7 @@ export default function MaterialList() {
             <TableRow sx={{ bgcolor: 'grey.50' }}>
               <TableCell sx={{ fontWeight: 600 }}>编码</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>名称</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>产品组</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>物料分组</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>规格</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>单位</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>采购单位</TableCell>
@@ -414,11 +458,7 @@ export default function MaterialList() {
                     </TableCell>
                     <TableCell>{item.name}</TableCell>
                     <TableCell>
-                      {item.group ? (
-                        <Tooltip title={`编码: ${item.group.code}`}>
-                          <Chip size="small" label={item.group.name} variant="outlined" color="primary" />
-                        </Tooltip>
-                      ) : '-'}
+                      {item.materialGroupName || '-'}
                     </TableCell>
                     <TableCell>{item.spec || '-'}</TableCell>
                     <TableCell>{item.unit || '-'}</TableCell>
@@ -506,21 +546,80 @@ export default function MaterialList() {
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 0.5 }}>
             <Grid item xs={6}>
-              <TextField fullWidth size="small" label="产品编码" value={form.code || '保存后自动生成'} disabled />
-            </Grid>
-            <Grid item xs={6}>
-              <TextField fullWidth size="small" label="产品名称" value={form.name || ''} onChange={(e) => setForm({ ...form, name: e.target.value })}
-                error={!form.name?.trim()} helperText={!form.name?.trim() ? '必填' : ''} />
+              <TextField fullWidth size="small" label="产品编码" value={form.code || '选择后自动填入'} disabled />
             </Grid>
             <Grid item xs={6}>
               <Autocomplete
                 size="small"
-                options={materialGroups}
-                getOptionLabel={option => option.name || ''}
-                value={materialGroups.find(g => g.id === form.groupId) || null}
-                onChange={(_, v) => setForm({ ...form, groupId: v?.id || '' })}
-                renderInput={(params) => <TextField {...params} label="所属产品组" helperText="可选，不选则为独立物料" />}
+                options={kdMaterials}
+                getOptionLabel={(m) => m.name || ''}
+                isOptionEqualToValue={(option, value) => option.code === value?.code}
+                value={kdSelected}
+                inputValue={kdInput}
+                loading={kdLoading}
+                loadingText="加载金蝶物料中..."
+                noOptionsText={kdLoading ? '加载中...' : '无匹配金蝶物料'}
+                openOnFocus
+                onOpen={() => {
+                  if (kdMaterials.length === 0 && !kdLoading) loadKingdeeMaterials('', 500);
+                }}
+                onInputChange={(_, newInputValue, reason) => {
+                  setKdInput(newInputValue);
+                  // 只在用户输入时触发搜索，选择/重置时不触发
+                  if (reason === 'input') {
+                    searchKingdeeMaterials(newInputValue);
+                  }
+                }}
+                onChange={(_, newValue) => {
+                  setKdSelected(newValue || null);
+                  if (newValue) {
+                    setKdInput(newValue.name || '');
+                    // 匹配金蝶物料等级到本地等级列表
+                    const kdGrades = newValue.grades || [];
+                    const matchedIds = kdGrades
+                      .map(g => materialGrades.find(lg => lg.name === g.FName)?.id)
+                      .filter(Boolean);
+                    setForm({
+                      ...form,
+                      code: newValue.code,
+                      _kdCode: newValue.code,
+                      name: newValue.name || '',
+                      spec: newValue.spec || form.spec || '',
+                      unit: newValue.baseUnitName || newValue.baseUnit || form.unit || '',
+                      purchaseUnit: newValue.purchaseUnitName || newValue.purchaseUnit || form.purchaseUnit || '',
+                      salesUnit: newValue.salesUnitName || newValue.salesUnit || form.salesUnit || '',
+                      materialGroupName: newValue.materialGroupName || newValue.materialGroup || '',
+                      gradeIds: matchedIds,
+                    });
+                  } else {
+                    setKdInput('');
+                    setForm({ ...form, code: '', _kdCode: '', name: '' });
+                  }
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="产品名称 *"
+                    placeholder="输入物料名称搜索..."
+                    error={!form.name?.trim()}
+                    helperText={!form.name?.trim() ? '必填' : '从金蝶物料中选择'}
+                  />
+                )}
+                renderOption={(props, m) => (
+                  <li {...props}>
+                    <Typography variant="body2" fontWeight={500}>{m.name}</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                      — {m.spec || '无规格'}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto', fontSize: '0.7rem' }}>
+                      {m.code}
+                    </Typography>
+                  </li>
+                )}
               />
+            </Grid>
+            <Grid item xs={6}>
+              <TextField fullWidth size="small" label="物料分组" value={form.materialGroupName || ''} onChange={(e) => setForm({ ...form, materialGroupName: e.target.value })} helperText="选择金蝶物料时自动填入" />
             </Grid>
             <Grid item xs={6}>
               <TextField fullWidth size="small" label="规格" value={form.spec || ''} onChange={(e) => setForm({ ...form, spec: e.target.value })} />
@@ -532,17 +631,19 @@ export default function MaterialList() {
               <TextField fullWidth size="small" label="采购单位" value={form.purchaseUnit || ''} onChange={(e) => setForm({ ...form, purchaseUnit: e.target.value })} placeholder="如: 斤/箱，不填则与基准单位相同" />
             </Grid>
             <Grid item xs={6}>
-              <TextField fullWidth size="small" type="number" label="采购换算系数" value={form.purchaseConversionFactor ?? ''}
-                onChange={(e) => setForm({ ...form, purchaseConversionFactor: e.target.value === '' ? '' : Number(e.target.value) })}
-                placeholder="1采购单位=?基准单位，如: 500(1斤=500克)" onFocus={(e) => e.target.select()} inputProps={{ min: 0.0001, step: 1 }} />
+              <TextField fullWidth size="small" type="number" label="采购换算系数 *" value={form.purchaseConversionFactor ?? ''}
+                onChange={(e) => { setForm({ ...form, purchaseConversionFactor: e.target.value === '' ? '' : Number(e.target.value) }); setFormErrors({ ...formErrors, purchaseConversionFactor: undefined }); }}
+                placeholder="1采购单位=?基准单位，如: 500(1斤=500克)" onFocus={(e) => e.target.select()} inputProps={{ min: 0.0001, step: 1 }}
+                error={!!formErrors.purchaseConversionFactor} helperText={formErrors.purchaseConversionFactor || ''} />
             </Grid>
             <Grid item xs={6}>
               <TextField fullWidth size="small" label="销售单位" value={form.salesUnit || ''} onChange={(e) => setForm({ ...form, salesUnit: e.target.value })} placeholder="如: 盒/份，不填则与基准单位相同" />
             </Grid>
             <Grid item xs={6}>
-              <TextField fullWidth size="small" type="number" label="销售换算系数" value={form.salesConversionFactor ?? ''}
-                onChange={(e) => setForm({ ...form, salesConversionFactor: e.target.value === '' ? '' : Number(e.target.value) })}
-                placeholder="1销售单位=?基准单位，如: 50(1盒=50克)" onFocus={(e) => e.target.select()} inputProps={{ min: 0.0001, step: 1 }} />
+              <TextField fullWidth size="small" type="number" label="销售换算系数 *" value={form.salesConversionFactor ?? ''}
+                onChange={(e) => { setForm({ ...form, salesConversionFactor: e.target.value === '' ? '' : Number(e.target.value) }); setFormErrors({ ...formErrors, salesConversionFactor: undefined }); }}
+                placeholder="1销售单位=?基准单位，如: 50(1盒=50克)" onFocus={(e) => e.target.select()} inputProps={{ min: 0.0001, step: 1 }}
+                error={!!formErrors.salesConversionFactor} helperText={formErrors.salesConversionFactor || ''} />
             </Grid>
             <Grid item xs={6}>
               <Autocomplete
@@ -571,24 +672,28 @@ export default function MaterialList() {
               />
             </Grid>
             <Grid item xs={6}>
-              <TextField fullWidth size="small" type="number" label="保质期(天)" value={form.shelfLifeDays ?? ''}
-                onChange={(e) => setForm({ ...form, shelfLifeDays: e.target.value === '' ? '' : Number(e.target.value) })}
-                placeholder="0" onFocus={(e) => e.target.select()} inputProps={{ min: 0 }} />
+              <TextField fullWidth size="small" type="number" label="保质期(天) *" value={form.shelfLifeDays ?? ''}
+                onChange={(e) => { setForm({ ...form, shelfLifeDays: e.target.value === '' ? '' : Number(e.target.value) }); setFormErrors({ ...formErrors, shelfLifeDays: undefined }); }}
+                placeholder="0" onFocus={(e) => e.target.select()} inputProps={{ min: 0 }}
+                error={!!formErrors.shelfLifeDays} helperText={formErrors.shelfLifeDays || ''} />
             </Grid>
             <Grid item xs={6}>
-              <TextField fullWidth size="small" type="number" label="采购周期(天)" value={form.purchaseLeadTime ?? ''}
-                onChange={(e) => setForm({ ...form, purchaseLeadTime: e.target.value === '' ? '' : Number(e.target.value) })}
-                placeholder="0" onFocus={(e) => e.target.select()} inputProps={{ min: 0 }} />
+              <TextField fullWidth size="small" type="number" label="采购周期(天) *" value={form.purchaseLeadTime ?? ''}
+                onChange={(e) => { setForm({ ...form, purchaseLeadTime: e.target.value === '' ? '' : Number(e.target.value) }); setFormErrors({ ...formErrors, purchaseLeadTime: undefined }); }}
+                placeholder="0" onFocus={(e) => e.target.select()} inputProps={{ min: 0 }}
+                error={!!formErrors.purchaseLeadTime} helperText={formErrors.purchaseLeadTime || ''} />
             </Grid>
             <Grid item xs={6}>
-              <TextField fullWidth size="small" type="number" label="采购期初价(元)" value={form.initialPurchasePrice ?? ''}
-                onChange={(e) => setForm({ ...form, initialPurchasePrice: e.target.value === '' ? '' : Number(e.target.value) })}
-                placeholder="0.00" onFocus={(e) => e.target.select()} inputProps={{ min: 0, step: 0.01 }} />
+              <TextField fullWidth size="small" type="number" label="采购期初价(元) *" value={form.initialPurchasePrice ?? ''}
+                onChange={(e) => { setForm({ ...form, initialPurchasePrice: e.target.value === '' ? '' : Number(e.target.value) }); setFormErrors({ ...formErrors, initialPurchasePrice: undefined }); }}
+                placeholder="0.00" onFocus={(e) => e.target.select()} inputProps={{ min: 0, step: 0.01 }}
+                error={!!formErrors.initialPurchasePrice} helperText={formErrors.initialPurchasePrice || ''} />
             </Grid>
             <Grid item xs={6}>
-              <TextField fullWidth size="small" type="number" label="指导百分比(%)" value={form.guidePercent ?? ''}
-                onChange={(e) => setForm({ ...form, guidePercent: e.target.value === '' ? '' : Number(e.target.value) })}
-                placeholder="30" onFocus={(e) => e.target.select()} inputProps={{ min: 0, step: 1 }} />
+              <TextField fullWidth size="small" type="number" label="指导百分比(%) *" value={form.guidePercent ?? ''}
+                onChange={(e) => { setForm({ ...form, guidePercent: e.target.value === '' ? '' : Number(e.target.value) }); setFormErrors({ ...formErrors, guidePercent: undefined }); }}
+                placeholder="30" onFocus={(e) => e.target.select()} inputProps={{ min: 0, step: 1 }}
+                error={!!formErrors.guidePercent} helperText={formErrors.guidePercent || ''} />
             </Grid>
             <Grid item xs={6}>
               <TextField fullWidth size="small" label="条码" value={form.barcode || ''}
@@ -676,7 +781,7 @@ export default function MaterialList() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setConfirmClose(false)}>继续编辑</Button>
-          <Button onClick={() => { setConfirmClose(false); setDialog({ open: false, data: null }); }} color="error" variant="contained">放弃更改</Button>
+          <Button onClick={() => { setConfirmClose(false); setDialog({ open: false, data: null }); setFormErrors({}); }} color="error" variant="contained">放弃更改</Button>
         </DialogActions>
       </Dialog>
     </Box>

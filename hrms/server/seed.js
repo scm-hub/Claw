@@ -57,7 +57,7 @@ async function main() {
   const employees = await Promise.all([
     prisma.employee.create({
       data: {
-        employeeNo: 'EMP001',
+        employeeNo: 'XDJ000000',
         name: '张三',
         gender: 'MALE',
         phone: '13800000001',

@@ -6,6 +6,7 @@ import { purchaseQtyToBase, purchaseUnitPriceToBase, baseQtyToPurchase, baseUnit
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { getKingdeeAdapter } from '../../../../../mdm/server/src/services/kingdee-adapter.js';
 
 const router = Router();
 router.use(authenticate);
@@ -1919,6 +1920,113 @@ router.put('/receipts/:id/qc-upload', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHAS
 // 前端 FormData:
 //   items: JSON string [{id, receivedQty}, ...]
 //   file_<itemId>: 每条明细的质检附件（multer.any() 接收）
+// ========================
+// 金蝶同步：SCM 采购入库 → 金蝶采购订单 + 入库单
+// ========================
+
+const SCM_UNIT_TO_KINGDEE = {
+  '斤': 'jin',
+  '千克': 'kg',
+  '磅': 'lb',
+  '克': 'g',
+  '吨': 'ton',
+  '升': 'l',
+  '毫升': 'ml',
+  '个': 'ge',
+  '箱': 'xiang',
+  '包': 'bao',
+  '袋': 'dai',
+  '套': 'tao',
+  '米': 'm',
+};
+
+function toKingdeeUnit(scmUnit) {
+  return SCM_UNIT_TO_KINGDEE[scmUnit] || scmUnit?.toLowerCase() || 'ge';
+}
+
+/**
+ * 异步推送采购入库单到金蝶（不阻塞用户响应）
+ */
+async function syncReceiptToKingdee(receiptId) {
+  const receipt = await prisma.purchaseReceipt.findUnique({
+    where: { id: receiptId },
+    include: {
+      purchaseOrder: { include: { supplier: true } },
+      warehouse: true,
+      items: { include: { material: true } },
+    },
+  });
+
+  if (!receipt || receipt.status !== 'CONFIRMED') return;
+
+  try {
+    const adapter = getKingdeeAdapter();
+    const supplierCode = receipt.purchaseOrder?.supplier?.code;
+    const warehouseCode = receipt.warehouse?.code;
+    const date = receipt.receiptDate ? new Date(receipt.receiptDate).toISOString().slice(0, 10) : undefined;
+
+    if (!supplierCode || !warehouseCode) {
+      throw new Error('供应商或仓库金蝶编码缺失');
+    }
+
+    // 构建金蝶 entries（一个SCM入库单可能有多个明细行）
+    const entries = receipt.items.map(item => ({
+      materialCode: item.material?.code,
+      qty: item.receivedQty,
+      price: Number(item.unitPrice),
+      unitCode: toKingdeeUnit(item.material?.purchaseUnit),
+      warehouseCode,
+      note: `SCM入库单${receipt.receiptNo}`,
+    }));
+
+    if (!entries.length || entries.some(e => !e.materialCode)) {
+      throw new Error('物料金蝶编码缺失');
+    }
+
+    // 从仓库编码推导采购/库存组织（金蝶仓库编码前5位=组织编号）
+    const orgCode = warehouseCode?.length >= 5 ? warehouseCode.substring(0, 5) : '10001';
+
+    // Step 1: 创建金蝶采购订单
+    const poResult = await adapter.createPurchaseOrder({
+      supplierCode,
+      date,
+      entries,
+      purchaseOrgCode: orgCode,
+    });
+
+    if (!poResult.success) throw new Error(poResult.error || '采购订单创建失败');
+
+    // Step 2: 创建金蝶采购入库单
+    const inboundResult = await adapter.createInboundReceipt({
+      supplierCode,
+      date,
+      entries,
+      sourceBillNo: poResult.billNo,
+      stockOrgCode: orgCode,
+    });
+
+    if (!inboundResult.success) throw new Error(inboundResult.error || '入库单创建失败');
+
+    // Step 3: 写回 SCM
+    await prisma.purchaseReceipt.update({
+      where: { id: receiptId },
+      data: {
+        kingdeeOrderNo: poResult.billNo,
+        kingdeeInboundNo: inboundResult.billNo,
+        kingdeeSyncStatus: 'SYNCED',
+      },
+    });
+
+    console.log(`[金蝶] 推送成功: 入库单=${receipt.receiptNo}, 采购订单=${poResult.billNo}, 入库单=${inboundResult.billNo}`);
+  } catch (err) {
+    console.error(`[金蝶] 推送失败: 入库单=${receipt.receiptNo}, 错误=${err.message}`);
+    await prisma.purchaseReceipt.update({
+      where: { id: receiptId },
+      data: { kingdeeSyncStatus: 'FAILED' },
+    }).catch(() => {});
+  }
+}
+
 const handleConfirmReceipt = async (req, res, next) => { try {
     const receipt = await prisma.purchaseReceipt.findUnique({
       where: { id: req.params.id },
@@ -2091,8 +2199,11 @@ const handleConfirmReceipt = async (req, res, next) => { try {
     // 5. 更新入库单状态为已确认
     await prisma.purchaseReceipt.update({
       where: { id: req.params.id },
-      data: { status: 'CONFIRMED', receiptDate: new Date() },
+      data: { status: 'CONFIRMED', receiptDate: new Date(), kingdeeSyncStatus: 'SYNCING' },
     });
+
+    // 6. 异步推送到金蝶（不阻塞用户响应）
+    syncReceiptToKingdee(req.params.id);
 
     res.json({ success: true, data: { receiptNo: receipt.receiptNo, batchNos, apNos } });
   } catch (err) { next(err); }

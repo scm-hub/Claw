@@ -195,6 +195,14 @@ export default function ShippingOrderList() {
       setShipmentLoading(false);
     }
   };
+  const handleFinalConfirm = (row) => {
+    if (!confirm(`确认完成发货单 ${row.shippingNo} 的全部流程？\n确认后将推送出入库记录到仓储WMS，完成后将无法撤销。`)) return;
+    api.put(`/logistics/shipping-orders/${row.id}/final-confirm`).then(() => {
+      setSnack({ open: true, msg: '最终确认成功，出入库记录已推送', sev: 'success' });
+      loadData();
+    }).catch((e) => setSnack({ open: true, msg: e.response?.data?.message || '确认失败', sev: 'error' }));
+  };
+
   const handleShipmentQtyChange = (index, value) => {
     const newItems = [...shipmentItems];
     newItems[index].actualQty = value === '' ? '' : Number(value);
@@ -578,6 +586,17 @@ export default function ShippingOrderList() {
                     <TableCell sx={{ whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
                       <Stack direction="row" spacing={0.5}>
                         <Button size="small" variant="contained" color="primary" startIcon={<Print sx={{ fontSize: '0.9rem' }} />} onClick={() => handlePrint(row)} sx={{ minWidth: 44, fontSize: '0.7rem', py: 0.25, borderRadius: '10px' }}>打印</Button>
+                        {row.logisticsStatus === 'ARRANGED' && row.stockingStatus === 'READY' && row.shippingStatus === 'SHIPPED' && row.status !== 'DELIVERED' && (
+                          <Button
+                            size="small"
+                            variant="contained"
+                            color="success"
+                            onClick={() => handleFinalConfirm(row)}
+                            sx={{ minWidth: 44, fontSize: '0.7rem', py: 0.25, borderRadius: '10px' }}
+                          >
+                            确认
+                          </Button>
+                        )}
                       </Stack>
                     </TableCell>
                   </TableRow>

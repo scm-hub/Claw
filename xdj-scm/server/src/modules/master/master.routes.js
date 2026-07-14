@@ -343,6 +343,75 @@ router.delete('/material-groups/:id', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHAS
 // ============================================================
 // 物料/产品管理
 // ============================================================
+
+/**
+ * GET /api/master/kingdee-materials — 金蝶物料快速搜索（供产品名称下拉）
+ * 代理转发到 MDM 服务
+ */
+router.get('/kingdee-materials', async (req, res, next) => {
+  try {
+    const { keyword = '', limit = 50 } = req.query;
+    const url = `http://localhost:4005/api/kingdee/search-materials?keyword=${encodeURIComponent(keyword)}&limit=${limit}`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if (!data.success) {
+      return res.status(500).json({ success: false, message: data.message || 'MDM 查询失败' });
+    }
+    res.json({ success: true, data: data.data });
+  } catch (err) { next(err); }
+});
+
+/**
+ * GET /api/master/kingdee-customers — 金蝶客户快速搜索（供客户名称下拉）
+ * 代理转发到 MDM 服务
+ */
+router.get('/kingdee-customers', async (req, res, next) => {
+  try {
+    const { keyword = '', limit = 50 } = req.query;
+    const url = `http://localhost:4005/api/kingdee/search-customers?keyword=${encodeURIComponent(keyword)}&limit=${limit}`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if (!data.success) {
+      return res.status(500).json({ success: false, message: data.message || 'MDM 查询失败' });
+    }
+    res.json({ success: true, data: data.data });
+  } catch (err) { next(err); }
+});
+
+/**
+ * GET /api/master/kingdee-suppliers — 金蝶供应商快速搜索（供供应商名称下拉）
+ * 代理转发到 MDM 服务
+ */
+router.get('/kingdee-suppliers', async (req, res, next) => {
+  try {
+    const { keyword = '', limit = 50 } = req.query;
+    const url = `http://localhost:4005/api/kingdee/search-suppliers?keyword=${encodeURIComponent(keyword)}&limit=${limit}`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if (!data.success) {
+      return res.status(500).json({ success: false, message: data.message || 'MDM 查询失败' });
+    }
+    res.json({ success: true, data: data.data });
+  } catch (err) { next(err); }
+});
+
+/**
+ * GET /api/master/kingdee-warehouses — 金蝶仓库快速搜索（供仓库名称下拉）
+ * 代理转发到 MDM 服务
+ */
+router.get('/kingdee-warehouses', async (req, res, next) => {
+  try {
+    const { keyword = '', limit = 50 } = req.query;
+    const url = `http://localhost:4005/api/kingdee/search-warehouses?keyword=${encodeURIComponent(keyword)}&limit=${limit}`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if (!data.success) {
+      return res.status(500).json({ success: false, message: data.message || 'MDM 查询失败' });
+    }
+    res.json({ success: true, data: data.data });
+  } catch (err) { next(err); }
+});
+
 router.get('/materials/categories', async (req, res, next) => {
   try {
     const rows = await prisma.material.findMany({
@@ -395,7 +464,12 @@ router.post('/materials', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_STAFF), as
   try {
     const { gradeIds, ...data } = req.body;
     if (!data.name) return res.status(400).json({ success: false, message: '产品名称必填' });
-    data.code = await genCode('material', 'MAT');
+    if (!data.code) data.code = await genCode('material', 'MAT');
+    // 编码唯一性校验
+    else {
+      const conflict = await prisma.material.findFirst({ where: { code: data.code } });
+      if (conflict) return res.status(400).json({ success: false, message: `编码「${data.code}」已被产品「${conflict.name}」使用，无法保存` });
+    }
     if (data.barcode === '') data.barcode = null;
     if (data.groupId === '') data.groupId = null;
 
@@ -431,10 +505,24 @@ router.post('/materials', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_STAFF), as
 
 router.put('/materials/:id', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_STAFF), async (req, res, next) => {
   try {
-    // 只提取可更新的字段，过滤掉 id/code/createdAt/updatedAt/grades 等只读字段
-    let { id, code, createdAt, updatedAt, latestReceiptDate, group, materialGrades, gradeIds, ...data } = req.body;
+    // 只提取可更新的字段，过滤掉 id/createdAt/updatedAt/grades 等只读字段
+    let { id, createdAt, updatedAt, latestReceiptDate, group, materialGrades, gradeIds, ...data } = req.body;
     if (data.barcode === '') data.barcode = null;
     if (data.groupId === '') data.groupId = null;
+
+    // 如果要修改编码，先检查是否与其他物料冲突
+    if (data.code) {
+      const existing = await prisma.material.findFirst({
+        where: { code: data.code, id: { not: req.params.id } },
+        select: { id: true, name: true },
+      });
+      if (existing) {
+        return res.status(400).json({
+          success: false,
+          message: `编码「${data.code}」已被其他物料「${existing.name}」使用，无法保存`,
+        });
+      }
+    }
 
     // 更新物料基础字段
     const mat = await prisma.material.update({
@@ -734,7 +822,7 @@ router.get('/customers', async (req, res, next) => {
 router.post('/customers', authorize(ROLES.SUPER_ADMIN, ROLES.SALES_MANAGER, ROLES.SALES_REP), async (req, res, next) => {
   try {
     // 过滤 id/code/createdAt/updatedAt 等只读字段，以及嵌套关联对象
-    let { id, code, createdAt, updatedAt, salesRep, department, addresses, priceLists, salesOrders, salesPlanItems, accountsReceivable, shippingOrders, waybills, afterSales, batchTrackings, ...data } = req.body;
+    let { id, createdAt, updatedAt, salesRep, department, addresses, priceLists, salesOrders, salesPlanItems, accountsReceivable, shippingOrders, waybills, afterSales, batchTrackings, ...data } = req.body;
     if (!data.name) return res.status(400).json({ success: false, message: '客户名称必填' });
     // 业务员未指定时，SALES_REP 自动绑定自己
     if (!data.salesRepId) {
@@ -743,7 +831,12 @@ router.post('/customers', authorize(ROLES.SUPER_ADMIN, ROLES.SALES_MANAGER, ROLE
         data.salesRepId = req.user.employeeId;
       }
     }
-    data.code = await genCode('customer', 'CUS');
+    if (!data.code) data.code = await genCode('customer', 'CUS');
+    // 编码唯一性校验
+    else {
+      const conflict = await prisma.customer.findFirst({ where: { code: data.code } });
+      if (conflict) return res.status(400).json({ success: false, message: `编码「${data.code}」已被客户「${conflict.name}」使用，无法保存` });
+    }
     if (data.salesRepId === '') data.salesRepId = null;
     if (data.departmentId === '') data.departmentId = null;
     const cust = await prisma.customer.create({
@@ -756,10 +849,15 @@ router.post('/customers', authorize(ROLES.SUPER_ADMIN, ROLES.SALES_MANAGER, ROLE
 
 router.put('/customers/:id', authorize(ROLES.SUPER_ADMIN, ROLES.SALES_MANAGER, ROLES.SALES_REP), async (req, res, next) => {
   try {
-    // 过滤 id/code/createdAt/updatedAt 等只读字段，以及嵌套关联对象
-    let { id, code, createdAt, updatedAt, salesRep, department, addresses, priceLists, salesOrders, salesPlanItems, accountsReceivable, shippingOrders, waybills, afterSales, batchTrackings, ...data } = req.body;
+    // 过滤 id/createdAt/updatedAt 等只读字段，以及嵌套关联对象
+    let { id, createdAt, updatedAt, salesRep, department, addresses, priceLists, salesOrders, salesPlanItems, accountsReceivable, shippingOrders, waybills, afterSales, batchTrackings, ...data } = req.body;
     if (data.salesRepId === '' || data.salesRepId === undefined) data.salesRepId = null;
     if (data.departmentId === '' || data.departmentId === undefined) data.departmentId = null;
+    // 编码唯一性校验
+    if (data.code) {
+      const conflict = await prisma.customer.findFirst({ where: { code: data.code, id: { not: req.params.id } } });
+      if (conflict) return res.status(400).json({ success: false, message: `编码「${data.code}」已被其他客户「${conflict.name}」使用，无法保存` });
+    }
     const cust = await prisma.customer.update({
       where: { id: req.params.id },
       data,
@@ -920,7 +1018,12 @@ router.post('/suppliers', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_STAFF, ROL
   try {
     const data = req.body;
     if (!data.name) return res.status(400).json({ success: false, message: '供应商名称必填' });
-    data.code = await genCode('supplier', 'SUP');
+    if (!data.code) data.code = await genCode('supplier', 'SUP');
+    // 编码唯一性校验
+    else {
+      const conflict = await prisma.supplier.findFirst({ where: { code: data.code } });
+      if (conflict) return res.status(400).json({ success: false, message: `编码「${data.code}」已被供应商「${conflict.name}」使用，无法保存` });
+    }
     const sup = await prisma.supplier.create({ data });
     res.json({ success: true, data: sup });
   } catch (err) { next(err); }
@@ -928,7 +1031,13 @@ router.post('/suppliers', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_STAFF, ROL
 
 router.put('/suppliers/:id', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_STAFF, ROLES.PURCHASE_MANAGER), async (req, res, next) => {
   try {
-    const sup = await prisma.supplier.update({ where: { id: req.params.id }, data: req.body });
+    const data = req.body;
+    // 编码唯一性校验
+    if (data.code) {
+      const conflict = await prisma.supplier.findFirst({ where: { code: data.code, id: { not: req.params.id } } });
+      if (conflict) return res.status(400).json({ success: false, message: `编码「${data.code}」已被其他供应商「${conflict.name}」使用，无法保存` });
+    }
+    const sup = await prisma.supplier.update({ where: { id: req.params.id }, data });
     res.json({ success: true, data: sup });
   } catch (err) { next(err); }
 });

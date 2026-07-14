@@ -80,7 +80,7 @@
 - 统一认证 + 集中权限管理（SCM SSO-only + Portal 统一用户/权限管理）✅
 - 成本价算法重写（加权平均法）✅
 - **打印管理完善**（状态按钮对齐、适用模块改为二级菜单分组、发货管理接入PrintDialog、预设模板补全、InputLabel裁切修复skill）✅
-- **当前阶段**：SCM销售订单审批流对接完成
+- **当前阶段**：SCM 采购入库 → 金蝶采购订单+入库单推送（阶段3完成）、SCM销售订单审批流对接完成
 - **审批流引擎**：workflow-engine(4011) 已搭建，8个预置模板，Portal前端工作台+流程管理页面已完成，**已支持条件分支节点**
 - **FlowTemplate 三级级联**：system→module→businessType，全部中文显示+英文code存储；MODULE_BUSINESS_TYPES 映射22个模块共38种业务类型；后端 /system-modules API 返回含 businessTypes 的级联数据；businessType 是模板唯一键，不需要再加 subModule 层级
 - **审批流条件分支**：节点类型 `condition` 支持按表达式（如 `marginRate >= 25`）自动路由；表达式安全求值器仅允许字母数字/比较/逻辑运算符；变量来自子系统提交时传入的 `objectData`；condition 节点不创建审批任务，自动跳过；支���链式条件；Portal 模板编辑器可图形化配置分支规则
@@ -89,6 +89,15 @@
 - **采购计划数据隔离（方案三：混合隔离+部门负责人判断）**：SUPER_ADMIN看全部/无过滤；**PURCHASE_MANAGER：部门负责人看departmentId=自己部门的所有计划，非负责人只看assigneeId=自己的子计划+creatorId=自己的草稿父计划**；PURCHASE_STAFF看assigneeId=自己的子计划+creatorId=自己的草稿父计划；**非采购角色有PurchaserAssignment绑定的：部门负责人(Department.managerId===User.employeeId)看同部门所有子计划，非负责人只看assigneeId=自己的子计划**；无绑定的其他角色返回空数据。`getPlanDataFilter(user)`返回Prisma where条件（async），`hasPlanViewAccess(user)`返回boolean（async），`isPurchaserAssignee(userId)`查PurchaserAssignment表判断绑定（5分钟缓存），`isDepartmentManager(userId)`查Department.managerId===Employee.id（5分钟缓存）
 - **子计划departmentId取采购员部门**：分配/转发/定时任务创建子计划时，departmentId取采购员(assigneeId)的employee.departmentId而非继承父计划部门；fallback到父/源计划departmentId防止空值；历史数据已按采购员部门修正
 - **采购计划确认流程**：PurchasePlanItem新增unitPrice(Decimal(12,2))/actualQty(Int)字段；PurchasePlan状态新增CONFIRMED；流程：父计划审批→分配子计划(APPROVED)→采购员填写supplierId/unitPrice/actualQty→确认(CONFIRMED)→出现在采购订单新增列表；后端两个路由：PUT /plans/:id/confirm（校验三字段完整+assigneeId=当前用户）和PUT /plans/:id/items（保存明细三字段）；available-plans只查CONFIRMED状态；remainingQty=actualQty-orderedQty
+- **SCM→金蝶采购入库推送（阶段3已完成）**：确认入库后异步推送到金蝶
+  - **关键F前缀规则**：PUR_PurchaseOrder Save 明细用 `FPOOrderEntry`，STK_InStock Save 明细用 `FInStockEntry`（不用不带F前缀的）
+  - **入库单类型**：RKD02_SYS（不要求关联源单），RKD01_SYS 会报「至少要有一行分录是关联生成」
+  - **必填字段**：F_VIIH_Base={FNumber:'004'}（收发类别=物料入库）
+  - **单位映射**：斤→jin、千克→kg、磅→lb
+  - **采购组织**：FPurchaseOrgId={FNumber:'10001'}（山东七河生物科技股份有限公司）
+  - **PurchaseReceipt 新增字段**：kingdeeOrderNo/kingdeeInboundNo/kingdeeSyncStatus
+  - **适配器方法**：adapter.createPurchaseOrder(params)、adapter.createInboundReceipt(params)（自动Save+Submit+Audit）
+  - **Push API不可用**：转换规则 PUR_PurchaseOrder-STK_InStock 未映射 F_VIIH_Base，走直接Save替代
 
 ## 用户偏好
 - **任务完成后报告剩余积分**：蒲坤要求每次执行完任务后，把剩余积分数发给他

@@ -603,7 +603,7 @@ export default function SalesOrderList() {
                   </TableRow>
                   {isOpen && (
                     <TableRow>
-                      <TableCell colSpan={11} sx={{ py: 0, bgcolor: 'grey.50', width: '100%' }}>
+                      <TableCell colSpan={12} sx={{ py: 0, bgcolor: 'grey.50', width: '100%' }}>
                         {detail ? (
                           <Box sx={{ py: 1 }}>
                             {detail.status !== 'CANCELLED' && detail.status !== 'REJECTED' && (
@@ -654,6 +654,7 @@ export default function SalesOrderList() {
                                 })}
                                 <TableRow sx={{ '& .MuiTableCell-root': { fontWeight: 'bold', borderTop: '2px solid', borderColor: 'divider' } }}>
                                   <TableCell>合计</TableCell>
+                                  <TableCell />
                                   <TableCell>{detail.items?.reduce((s, it) => s + Number(it.qty), 0)}</TableCell>
                                   <TableCell />
                                   <TableCell />

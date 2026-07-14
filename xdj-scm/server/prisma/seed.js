@@ -32,19 +32,19 @@ async function main() {
 
   // 2. 创建员工
   const admin = await prisma.employee.create({
-    data: { empNo: 'EMP001', name: '系统管理员', departmentId: rootDept.id, position: 'IT管理员', phone: '13800000001', email: 'admin@hrms.com', hireDate: new Date('2026-01-01') },
+    data: { empNo: 'XDJ000000', name: '系统管理员', departmentId: rootDept.id, position: 'IT管理员', phone: '13800000001', email: 'admin@hrms.com', hireDate: new Date('2026-01-01') },
   });
   const salesManager = await prisma.employee.create({
-    data: { empNo: 'EMP002', name: '张销售', departmentId: salesDept.id, position: '销售经理', phone: '13800000002', email: 'sales@xdj.com', hireDate: new Date('2026-01-01') },
+    data: { empNo: 'XDJ000001', name: '张销售', departmentId: salesDept.id, position: '销售经理', phone: '13800000002', email: 'sales@xdj.com', hireDate: new Date('2026-01-01') },
   });
   const purchaseStaff = await prisma.employee.create({
-    data: { empNo: 'EMP003', name: '李采购', departmentId: purchaseDept.id, position: '采购员', phone: '13800000003', email: 'purchase@xdj.com', hireDate: new Date('2026-01-01') },
+    data: { empNo: 'XDJ000002', name: '李采购', departmentId: purchaseDept.id, position: '采购员', phone: '13800000003', email: 'purchase@xdj.com', hireDate: new Date('2026-01-01') },
   });
   const warehouseStaff = await prisma.employee.create({
-    data: { empNo: 'EMP004', name: '王仓库', departmentId: warehouseDept.id, position: '仓库管理员', phone: '13800000004', email: 'wh@xdj.com', hireDate: new Date('2026-01-01') },
+    data: { empNo: 'XDJ000003', name: '王仓库', departmentId: warehouseDept.id, position: '仓库管理员', phone: '13800000004', email: 'wh@xdj.com', hireDate: new Date('2026-01-01') },
   });
   const financeStaff = await prisma.employee.create({
-    data: { empNo: 'EMP005', name: '赵财务', departmentId: financeDept.id, position: '财务员', phone: '13800000005', email: 'fin@xdj.com', hireDate: new Date('2026-01-01') },
+    data: { empNo: 'XDJ000004', name: '赵财务', departmentId: financeDept.id, position: '财务员', phone: '13800000005', email: 'fin@xdj.com', hireDate: new Date('2026-01-01') },
   });
   console.log('  员工已创建');
 

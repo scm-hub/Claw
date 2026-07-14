@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Box, Card, CardContent, Typography, Button, TextField, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Paper, IconButton, Dialog, DialogTitle,
   DialogContent, DialogActions, Grid, MenuItem, InputAdornment, TablePagination,
-  Chip, Stack, FormControl, InputLabel, Select, Fade, Tooltip,
+  Chip, Stack, FormControl, InputLabel, Select, Fade, Tooltip, Autocomplete,
 } from '@mui/material';
 import {
   Add, Edit, Delete, Search, RestartAlt, FilterList, Business, CheckCircle,
@@ -24,8 +24,29 @@ export default function SupplierList() {
   const [form, setForm] = useState({});
   const [refDialog, setRefDialog] = useState({ open: false, message: '', references: [] });
   const [confirmClose, setConfirmClose] = useState(false);
+  const [formErrors, setFormErrors] = useState({});
   const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0 });
   const [loading, setLoading] = useState(false);
+
+  // 金蝶供应商下拉搜索
+  const [kdSuppliers, setKdSuppliers] = useState([]);
+  const [kdSupplierLoading, setKdSupplierLoading] = useState(false);
+  const [kdSupplierSelected, setKdSupplierSelected] = useState(null);
+  const [kdSupplierInput, setKdSupplierInput] = useState('');
+  const kdSearchTimer = useRef(null);
+
+  // 金蝶供应商远程搜索（300ms 防抖）
+  const searchKingdeeSuppliers = useCallback((keyword) => {
+    if (kdSearchTimer.current) clearTimeout(kdSearchTimer.current);
+    kdSearchTimer.current = setTimeout(async () => {
+      setKdSupplierLoading(true);
+      try {
+        const data = await api.get('/master/kingdee-suppliers', { params: { keyword: keyword || '', limit: 50 } });
+        setKdSuppliers(data.data || []);
+      } catch { setKdSuppliers([]); }
+      finally { setKdSupplierLoading(false); }
+    }, 300);
+  }, []);
 
   const loadList = useCallback(async () => {
     setLoading(true);
@@ -68,6 +89,10 @@ export default function SupplierList() {
 
   const handleOpen = (data = null) => {
     setDialog({ open: true, data });
+    // 预加载金蝶供应商（首次）
+    if (kdSuppliers.length === 0 && !kdSupplierLoading) searchKingdeeSuppliers('');
+    setKdSupplierSelected(data ? { code: data.code, name: data.name, _kdCode: data.code } : null);
+    setKdSupplierInput(data?.name || '');
     setForm(data || {
       name: '', contactPerson: '', contactPhone: '', address: '',
       bankAccount: '', status: 'ACTIVE',
@@ -75,9 +100,20 @@ export default function SupplierList() {
   };
 
   const handleSave = async () => {
+    // 必填校验
+    const errors = {};
+    if (!form.name?.trim()) errors.name = '必填';
+    if (!form.contactPerson?.trim()) errors.contactPerson = '必填';
+    if (!form.contactPhone?.trim()) errors.contactPhone = '必填';
+    if (!form.bankAccount?.trim()) errors.bankAccount = '必填';
+    if (Object.keys(errors).length > 0) { setFormErrors(errors); return; }
+    setFormErrors({});
+
     try {
-      if (dialog.data) await api.put(`/master/suppliers/${dialog.data.id}`, form);
-      else await api.post('/master/suppliers', form);
+      const payload = { ...form };
+      delete payload._kdCode;
+      if (dialog.data) await api.put(`/master/suppliers/${dialog.data.id}`, payload);
+      else await api.post('/master/suppliers', payload);
       setDialog({ open: false, data: null });
       loadList();
       loadStats();
@@ -106,6 +142,7 @@ export default function SupplierList() {
     if (hasFormChanges()) {
       setConfirmClose(true);
     } else {
+      setFormErrors({});
       setDialog({ open: false, data: null });
     }
   };
@@ -346,23 +383,65 @@ export default function SupplierList() {
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 1 }}>
             <Grid item xs={6}>
-              <TextField fullWidth size="small" label="供应商编码" value={form.code || '保存后自动生成'} disabled />
+              <TextField fullWidth size="small" label="供应商编码" value={form.code || '选择后自动填入'} disabled />
             </Grid>
             <Grid item xs={6}>
-              <TextField fullWidth size="small" label="供应商名称 *" value={form.name || ''}
-                onChange={(e) => setForm({ ...form, name: e.target.value })} />
+              <Autocomplete
+                size="small"
+                options={kdSuppliers}
+                getOptionLabel={(m) => m.name || ''}
+                isOptionEqualToValue={(option, value) => option.code === value?.code}
+                value={kdSupplierSelected}
+                inputValue={kdSupplierInput}
+                loading={kdSupplierLoading}
+                loadingText="加载金蝶供应商中..."
+                noOptionsText={kdSupplierLoading ? '加载中...' : '无匹配金蝶供应商'}
+                openOnFocus
+                filterOptions={(x) => x}
+                onInputChange={(_, newInputValue, reason) => {
+                  if (reason === 'input') {
+                    setKdSupplierInput(newInputValue);
+                    searchKingdeeSuppliers(newInputValue);
+                  }
+                }}
+                onChange={(_, newValue) => {
+                  setKdSupplierSelected(newValue);
+                  if (newValue) {
+                    setKdSupplierInput(newValue.name || '');
+                    setForm({ ...form, code: newValue.code, name: newValue.name || '', _kdCode: newValue.code });
+                  } else {
+                    setKdSupplierInput('');
+                    setForm({ ...form, code: '', name: '', _kdCode: '' });
+                  }
+                }}
+                renderOption={(props, m) => (
+                  <li {...props}>
+                    <Typography variant="body2" fontWeight={500}>{m.name}</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto', fontSize: '0.7rem' }}>
+                      {m.code}
+                    </Typography>
+                  </li>
+                )}
+                renderInput={(params) => (
+                  <TextField {...params} label="供应商名称 *" placeholder="输入关键字搜索金蝶供应商..."
+                    error={!form.name?.trim()} helperText={!form.name?.trim() ? '必填 - 可从金蝶供应商中选择' : '从金蝶供应商中选择，也可手动输入'} />
+                )}
+              />
             </Grid>
             <Grid item xs={6}>
-              <TextField fullWidth size="small" label="联系人" value={form.contactPerson || ''}
-                onChange={(e) => setForm({ ...form, contactPerson: e.target.value })} />
+              <TextField fullWidth size="small" label="联系人 *" value={form.contactPerson || ''}
+                onChange={(e) => { setForm({ ...form, contactPerson: e.target.value }); setFormErrors({ ...formErrors, contactPerson: undefined }); }}
+                error={!!formErrors.contactPerson} helperText={formErrors.contactPerson || ''} />
             </Grid>
             <Grid item xs={6}>
-              <TextField fullWidth size="small" label="联系电话" value={form.contactPhone || ''}
-                onChange={(e) => setForm({ ...form, contactPhone: e.target.value })} />
+              <TextField fullWidth size="small" label="联系电话 *" value={form.contactPhone || ''}
+                onChange={(e) => { setForm({ ...form, contactPhone: e.target.value }); setFormErrors({ ...formErrors, contactPhone: undefined }); }}
+                error={!!formErrors.contactPhone} helperText={formErrors.contactPhone || ''} />
             </Grid>
             <Grid item xs={6}>
-              <TextField fullWidth size="small" label="银行账号" value={form.bankAccount || ''}
-                onChange={(e) => setForm({ ...form, bankAccount: e.target.value })} />
+              <TextField fullWidth size="small" label="银行账号 *" value={form.bankAccount || ''}
+                onChange={(e) => { setForm({ ...form, bankAccount: e.target.value }); setFormErrors({ ...formErrors, bankAccount: undefined }); }}
+                error={!!formErrors.bankAccount} helperText={formErrors.bankAccount || ''} />
             </Grid>
             <Grid item xs={6}>
               <TextField select fullWidth size="small" label="状态" value={form.status || 'ACTIVE'}
@@ -441,7 +520,7 @@ export default function SupplierList() {
         <DialogActions>
           <Button onClick={() => setConfirmClose(false)}>继续编辑</Button>
           <Button
-            onClick={() => { setConfirmClose(false); setDialog({ open: false, data: null }); }}
+            onClick={() => { setConfirmClose(false); setFormErrors({}); setDialog({ open: false, data: null }); }}
             color="error"
             variant="contained"
           >

@@ -53,7 +53,7 @@ router.post('/callback', async (req, res, next) => {
         });
 
         // 自动生成发货单（如果尚未存在）
-        const existingShipping = await prisma.shippingOrder.findUnique({ where: { salesOrderId: objectId } });
+        const existingShipping = await prisma.shippingOrder.findFirst({ where: { salesOrderId: objectId } });
         if (!existingShipping) {
           await prisma.shippingOrder.create({
             data: {

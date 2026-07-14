@@ -82,6 +82,24 @@ export default function ReceiptList() {
   useEffect(() => { setExpandedId(null); }, [page]);
   useEffect(() => { api.get('/purchase/suppliers').then(res => setSuppliers(res.data?.list || res.data || [])).catch(() => {}); }, []);
 
+  // 金蝶同步轮询：列表中存在 SYNCING 状态时自动刷新
+  useEffect(() => {
+    const hasSyncing = list.some((r) => r.kingdeeSyncStatus === 'SYNCING');
+    if (!hasSyncing) return;
+
+    let count = 0;
+    const maxCount = 20; // 最多轮询 20 次 × 3 秒 = 60 秒
+    const timer = setInterval(() => {
+      count += 1;
+      loadList();
+      if (count >= maxCount) clearInterval(timer);
+      // loadList 内部更新 list 后，下次 effect 会判断是否继续
+    }, 3000);
+
+    return () => clearInterval(timer);
+  }, [list]);
+
+
   const handleSearch = () => { setPage(0); };
   const handleReset = () => {
     setKeyword(''); setStatus(''); setBatchNo(''); setSupplierId(''); setStartDate(''); setEndDate('');
@@ -285,6 +303,7 @@ export default function ReceiptList() {
               <TableCell sx={{ fontWeight: 'bold' }}>仓库</TableCell>
               <TableCell sx={{ fontWeight: 'bold' }}>明细数</TableCell>
               <TableCell sx={{ fontWeight: 'bold' }}>状态</TableCell>
+              <TableCell sx={{ fontWeight: 'bold' }}>金蝶同步</TableCell>
               <TableCell sx={{ fontWeight: 'bold' }}>入库时间</TableCell>
               <TableCell sx={{ fontWeight: 'bold' }}>操作</TableCell>
             </TableRow>
@@ -313,6 +332,29 @@ export default function ReceiptList() {
                       <Chip size="small" label={`${receipt.items?.length || 0} 条`} color="primary" variant="outlined" />
                     </TableCell>
                     <TableCell><Chip size="small" label={RECEIPT_STATUS_MAP[receipt.status]?.label || receipt.status} color={RECEIPT_STATUS_MAP[receipt.status]?.color || 'default'} /></TableCell>
+                    <TableCell>
+                      {receipt.kingdeeSyncStatus === 'SYNCED' && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <Chip size="small" label="已同步" color="success" variant="outlined" />
+                          <Tooltip title={`入库单: ${receipt.kingdeeInboundNo || '-'}`}>
+                            <Typography variant="caption" color="text.secondary" sx={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {receipt.kingdeeOrderNo || '-'}
+                            </Typography>
+                          </Tooltip>
+                        </Box>
+                      )}
+                      {receipt.kingdeeSyncStatus === 'SYNCING' && (
+                        <Chip size="small" label="同步中" color="info" icon={<CircularProgress size={12} />} />
+                      )}
+                      {receipt.kingdeeSyncStatus === 'FAILED' && (
+                        <Tooltip title="金蝶推送失败，请联系管理员">
+                          <Chip size="small" label="失败" color="error" variant="outlined" />
+                        </Tooltip>
+                      )}
+                      {(!receipt.kingdeeSyncStatus || receipt.kingdeeSyncStatus === 'PENDING') && (
+                        <Chip size="small" label="未同步" variant="outlined" sx={{ color: 'text.secondary', borderColor: 'grey.400' }} />
+                      )}
+                    </TableCell>
                     <TableCell>{receipt.receiptDate ? new Date(receipt.receiptDate).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'}</TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       {receipt.status === 'PENDING' && (

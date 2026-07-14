@@ -1,0 +1,3658 @@
+{
+  "purchaseOrder": {
+    "Result": {
+      "Id": 164972,
+      "FFormId": "PUR_PurchaseOrder",
+      "BillNo": "CGDD-202607120830",
+      "DocumentStatus": "C",
+      "Date": "2026-07-12T00:00:00",
+      "PurchaseOrgId_Id": 100067,
+      "PurchaseOrgId": {
+        "Id": 100067,
+        "MultiLanguageText": [
+          {
+            "PkId": 100004,
+            "LocaleId": 2052,
+            "Name": "山东七河生态农业有限公司"
+          }
+        ],
+        "Name": [
+          {
+            "Key": 2052,
+            "Value": "山东七河生态农业有限公司"
+          }
+        ],
+        "Number": "10002"
+      },
+      "SupplierId_Id": 3114378,
+      "SupplierId": {
+        "Id": 3114378,
+        "msterID": 3114376,
+        "MultiLanguageText": [
+          {
+            "PkId": 220317,
+            "LocaleId": 2052,
+            "Name": "山东果彩包装材料有限公司"
+          }
+        ],
+        "Name": [
+          {
+            "Key": 2052,
+            "Value": "山东果彩包装材料有限公司"
+          }
+        ],
+        "Number": "010310128",
+        "UseOrgId_Id": 100067,
+        "UseOrgId": {
+          "Id": 100067,
+          "Number": "10002",
+          "MultiLanguageText": [
+            {
+              "PkId": 100004,
+              "LocaleId": 2052,
+              "Name": "山东七河生态农业有限公司"
+            }
+          ],
+          "Name": [
+            {
+              "Key": 2052,
+              "Value": "山东七河生态农业有限公司"
+            }
+          ]
+        },
+        "CorrespondOrgId_Id": 0,
+        "CorrespondOrgId": null,
+        "SupplierBase": [
+          {
+            "Id": 220317,
+            "Address": " ",
+            "DeptId_Id": 0,
+            "DeptId": null,
+            "FStaffId_Id": 0,
+            "FStaffId": null
+          }
+        ],
+        "SupplierBusiness": [
+          {
+            "Id": 220317,
+            "FreezeLimit": " ",
+            "SettleTypeId_Id": 0,
+            "SettleTypeId": null,
+            "PriceListID_Id": 0,
+            "PriceListID": null,
+            "DiscountListId_Id": 0,
+            "DiscountListId": null,
+            "ProviderId_Id": 3114378,
+            "ProviderId": {
+              "Id": 3114378,
+              "msterID": 3114376,
+              "Number": "010310128",
+              "MultiLanguageText": [
+                {
+                  "PkId": 220317,
+                  "LocaleId": 2052,
+                  "Name": "山东果彩包装材料有限公司"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "山东果彩包装材料有限公司"
+                }
+              ]
+            },
+            "VmiBusiness": false,
+            "DepositRatio": 0
+          }
+        ],
+        "SupplierFinance": [
+          {
+            "Id": 220317,
+            "PayCurrencyId_Id": 1,
+            "PayCurrencyId": {
+              "Id": 1,
+              "msterID": 1,
+              "Number": "PRE001",
+              "MultiLanguageText": [
+                {
+                  "PkId": 2,
+                  "LocaleId": 2052,
+                  "Name": "人民币"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "人民币"
+                }
+              ]
+            },
+            "PayAdvanceAmount": 0,
+            "FTaxType_Id": "9e855eb97bec43e7b50c3e0e0bf51210",
+            "FTaxType": {
+              "Id": "9e855eb97bec43e7b50c3e0e0bf51210",
+              "Number": "SFL02_SYS",
+              "MultiLanguageText": [
+                {
+                  "PkId": "7841e26e9e5a4fe6a83e7cdbe0c24175",
+                  "LocaleId": 2052,
+                  "Name": "一般纳税人"
+                },
+                {
+                  "PkId": "2942b840514242b299738f8b9bbe2095",
+                  "LocaleId": 3076,
+                  "Name": "一般納稅人"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "一般纳税人"
+                },
+                {
+                  "Key": 3076,
+                  "Value": "一般納稅人"
+                }
+              ]
+            },
+            "PayCondition_Id": 0,
+            "PayCondition": null,
+            "SettleId_Id": 3114378,
+            "SettleId": {
+              "Id": 3114378,
+              "msterID": 3114376,
+              "Number": "010310128",
+              "MultiLanguageText": [
+                {
+                  "PkId": 220317,
+                  "LocaleId": 2052,
+                  "Name": "山东果彩包装材料有限公司"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "山东果彩包装材料有限公司"
+                }
+              ]
+            },
+            "ChargeId_Id": 3114378,
+            "ChargeId": {
+              "Id": 3114378,
+              "msterID": 3114376,
+              "Number": "010310128",
+              "MultiLanguageText": [
+                {
+                  "PkId": 220317,
+                  "LocaleId": 2052,
+                  "Name": "山东果彩包装材料有限公司"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "山东果彩包装材料有限公司"
+                }
+              ]
+            }
+          }
+        ],
+        "SupplierLocation": [],
+        "SupplierContact": []
+      },
+      "PurchaserGroupId_Id": 0,
+      "PurchaserGroupId": null,
+      "PurchaseDeptId_Id": 0,
+      "PurchaseDeptId": null,
+      "CreatorId_Id": 122912,
+      "CreatorId": {
+        "Id": 122912,
+        "Name": "康成明",
+        "UserAccount": "00921"
+      },
+      "CreateDate": "2026-07-12T08:15:01.823",
+      "ModifierId_Id": 122912,
+      "ModifierId": {
+        "Id": 122912,
+        "Name": "康成明",
+        "UserAccount": "00921"
+      },
+      "ModifyDate": "2026-07-12T08:15:01.823",
+      "ApproverId_Id": 122912,
+      "ApproverId": {
+        "Id": 122912,
+        "Name": "康成明",
+        "UserAccount": "00921"
+      },
+      "ApproveDate": "2026-07-12T08:15:03.82",
+      "CancellerId_Id": 0,
+      "CancellerId": null,
+      "CancelDate": null,
+      "CancelStatus": "A",
+      "CloseStatus": "A",
+      "PurchaserId_Id": 0,
+      "PurchaserId": null,
+      "CloserId_Id": 0,
+      "CloserId": null,
+      "CloseDate": null,
+      "BillTypeId_Id": "83d822ca3e374b4ab01e5dd46a0062bd",
+      "BillTypeId": {
+        "Id": "83d822ca3e374b4ab01e5dd46a0062bd",
+        "MultiLanguageText": [
+          {
+            "PkId": "4b9a7a275c7d40fd9539277f1858c18f",
+            "LocaleId": 2052,
+            "Name": "标准采购订单"
+          }
+        ],
+        "Name": [
+          {
+            "Key": 2052,
+            "Value": "标准采购订单"
+          }
+        ],
+        "Number": "CGDD01_SYS"
+      },
+      "SettleId_Id": 3114378,
+      "SettleId": {
+        "Id": 3114378,
+        "msterID": 3114376,
+        "MultiLanguageText": [
+          {
+            "PkId": 220317,
+            "LocaleId": 2052,
+            "Name": "山东果彩包装材料有限公司"
+          }
+        ],
+        "Name": [
+          {
+            "Key": 2052,
+            "Value": "山东果彩包装材料有限公司"
+          }
+        ],
+        "Number": "010310128",
+        "UseOrgId_Id": 100067,
+        "UseOrgId": {
+          "Id": 100067,
+          "Number": "10002",
+          "MultiLanguageText": [
+            {
+              "PkId": 100004,
+              "LocaleId": 2052,
+              "Name": "山东七河生态农业有限公司"
+            }
+          ],
+          "Name": [
+            {
+              "Key": 2052,
+              "Value": "山东七河生态农业有限公司"
+            }
+          ]
+        },
+        "CorrespondOrgId_Id": 0,
+        "CorrespondOrgId": null,
+        "SupplierBase": [
+          {
+            "Id": 220317,
+            "Address": " ",
+            "DeptId_Id": 0,
+            "DeptId": null,
+            "FStaffId_Id": 0,
+            "FStaffId": null
+          }
+        ],
+        "SupplierBusiness": [
+          {
+            "Id": 220317,
+            "FreezeLimit": " ",
+            "SettleTypeId_Id": 0,
+            "SettleTypeId": null,
+            "PriceListID_Id": 0,
+            "PriceListID": null,
+            "DiscountListId_Id": 0,
+            "DiscountListId": null,
+            "ProviderId_Id": 3114378,
+            "ProviderId": {
+              "Id": 3114378,
+              "msterID": 3114376,
+              "Number": "010310128",
+              "MultiLanguageText": [
+                {
+                  "PkId": 220317,
+                  "LocaleId": 2052,
+                  "Name": "山东果彩包装材料有限公司"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "山东果彩包装材料有限公司"
+                }
+              ]
+            },
+            "VmiBusiness": false,
+            "DepositRatio": 0
+          }
+        ],
+        "SupplierFinance": [
+          {
+            "Id": 220317,
+            "PayCurrencyId_Id": 1,
+            "PayCurrencyId": {
+              "Id": 1,
+              "msterID": 1,
+              "Number": "PRE001",
+              "MultiLanguageText": [
+                {
+                  "PkId": 2,
+                  "LocaleId": 2052,
+                  "Name": "人民币"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "人民币"
+                }
+              ]
+            },
+            "PayAdvanceAmount": 0,
+            "FTaxType_Id": "9e855eb97bec43e7b50c3e0e0bf51210",
+            "FTaxType": {
+              "Id": "9e855eb97bec43e7b50c3e0e0bf51210",
+              "Number": "SFL02_SYS",
+              "MultiLanguageText": [
+                {
+                  "PkId": "7841e26e9e5a4fe6a83e7cdbe0c24175",
+                  "LocaleId": 2052,
+                  "Name": "一般纳税人"
+                },
+                {
+                  "PkId": "2942b840514242b299738f8b9bbe2095",
+                  "LocaleId": 3076,
+                  "Name": "一般納稅人"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "一般纳税人"
+                },
+                {
+                  "Key": 3076,
+                  "Value": "一般納稅人"
+                }
+              ]
+            },
+            "PayCondition_Id": 0,
+            "PayCondition": null,
+            "SettleId_Id": 3114378,
+            "SettleId": {
+              "Id": 3114378,
+              "msterID": 3114376,
+              "Number": "010310128",
+              "MultiLanguageText": [
+                {
+                  "PkId": 220317,
+                  "LocaleId": 2052,
+                  "Name": "山东果彩包装材料有限公司"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "山东果彩包装材料有限公司"
+                }
+              ]
+            },
+            "ChargeId_Id": 3114378,
+            "ChargeId": {
+              "Id": 3114378,
+              "msterID": 3114376,
+              "Number": "010310128",
+              "MultiLanguageText": [
+                {
+                  "PkId": 220317,
+                  "LocaleId": 2052,
+                  "Name": "山东果彩包装材料有限公司"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "山东果彩包装材料有限公司"
+                }
+              ]
+            }
+          }
+        ],
+        "SupplierLocation": [],
+        "SupplierContact": []
+      },
+      "ChargeId_Id": 3114378,
+      "ChargeId": {
+        "Id": 3114378,
+        "msterID": 3114376,
+        "MultiLanguageText": [
+          {
+            "PkId": 220317,
+            "LocaleId": 2052,
+            "Name": "山东果彩包装材料有限公司"
+          }
+        ],
+        "Name": [
+          {
+            "Key": 2052,
+            "Value": "山东果彩包装材料有限公司"
+          }
+        ],
+        "Number": "010310128",
+        "UseOrgId_Id": 100067,
+        "UseOrgId": {
+          "Id": 100067,
+          "Number": "10002",
+          "MultiLanguageText": [
+            {
+              "PkId": 100004,
+              "LocaleId": 2052,
+              "Name": "山东七河生态农业有限公司"
+            }
+          ],
+          "Name": [
+            {
+              "Key": 2052,
+              "Value": "山东七河生态农业有限公司"
+            }
+          ]
+        },
+        "CorrespondOrgId_Id": 0,
+        "CorrespondOrgId": null,
+        "SupplierBase": [
+          {
+            "Id": 220317,
+            "Address": " ",
+            "DeptId_Id": 0,
+            "DeptId": null,
+            "FStaffId_Id": 0,
+            "FStaffId": null
+          }
+        ],
+        "SupplierBusiness": [
+          {
+            "Id": 220317,
+            "FreezeLimit": " ",
+            "SettleTypeId_Id": 0,
+            "SettleTypeId": null,
+            "PriceListID_Id": 0,
+            "PriceListID": null,
+            "DiscountListId_Id": 0,
+            "DiscountListId": null,
+            "ProviderId_Id": 3114378,
+            "ProviderId": {
+              "Id": 3114378,
+              "msterID": 3114376,
+              "Number": "010310128",
+              "MultiLanguageText": [
+                {
+                  "PkId": 220317,
+                  "LocaleId": 2052,
+                  "Name": "山东果彩包装材料有限公司"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "山东果彩包装材料有限公司"
+                }
+              ]
+            },
+            "VmiBusiness": false,
+            "DepositRatio": 0
+          }
+        ],
+        "SupplierFinance": [
+          {
+            "Id": 220317,
+            "PayCurrencyId_Id": 1,
+            "PayCurrencyId": {
+              "Id": 1,
+              "msterID": 1,
+              "Number": "PRE001",
+              "MultiLanguageText": [
+                {
+                  "PkId": 2,
+                  "LocaleId": 2052,
+                  "Name": "人民币"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "人民币"
+                }
+              ]
+            },
+            "PayAdvanceAmount": 0,
+            "FTaxType_Id": "9e855eb97bec43e7b50c3e0e0bf51210",
+            "FTaxType": {
+              "Id": "9e855eb97bec43e7b50c3e0e0bf51210",
+              "Number": "SFL02_SYS",
+              "MultiLanguageText": [
+                {
+                  "PkId": "7841e26e9e5a4fe6a83e7cdbe0c24175",
+                  "LocaleId": 2052,
+                  "Name": "一般纳税人"
+                },
+                {
+                  "PkId": "2942b840514242b299738f8b9bbe2095",
+                  "LocaleId": 3076,
+                  "Name": "一般納稅人"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "一般纳税人"
+                },
+                {
+                  "Key": 3076,
+                  "Value": "一般納稅人"
+                }
+              ]
+            },
+            "PayCondition_Id": 0,
+            "PayCondition": null,
+            "SettleId_Id": 3114378,
+            "SettleId": {
+              "Id": 3114378,
+              "msterID": 3114376,
+              "Number": "010310128",
+              "MultiLanguageText": [
+                {
+                  "PkId": 220317,
+                  "LocaleId": 2052,
+                  "Name": "山东果彩包装材料有限公司"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "山东果彩包装材料有限公司"
+                }
+              ]
+            },
+            "ChargeId_Id": 3114378,
+            "ChargeId": {
+              "Id": 3114378,
+              "msterID": 3114376,
+              "Number": "010310128",
+              "MultiLanguageText": [
+                {
+                  "PkId": 220317,
+                  "LocaleId": 2052,
+                  "Name": "山东果彩包装材料有限公司"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "山东果彩包装材料有限公司"
+                }
+              ]
+            }
+          }
+        ],
+        "SupplierLocation": [],
+        "SupplierContact": []
+      },
+      "ProviderId_Id": 3114378,
+      "ProviderId": {
+        "Id": 3114378,
+        "msterID": 3114376,
+        "MultiLanguageText": [
+          {
+            "PkId": 220317,
+            "LocaleId": 2052,
+            "Name": "山东果彩包装材料有限公司"
+          }
+        ],
+        "Name": [
+          {
+            "Key": 2052,
+            "Value": "山东果彩包装材料有限公司"
+          }
+        ],
+        "Number": "010310128",
+        "UseOrgId_Id": 100067,
+        "UseOrgId": {
+          "Id": 100067,
+          "Number": "10002",
+          "MultiLanguageText": [
+            {
+              "PkId": 100004,
+              "LocaleId": 2052,
+              "Name": "山东七河生态农业有限公司"
+            }
+          ],
+          "Name": [
+            {
+              "Key": 2052,
+              "Value": "山东七河生态农业有限公司"
+            }
+          ]
+        },
+        "CorrespondOrgId_Id": 0,
+        "CorrespondOrgId": null,
+        "SupplierBase": [
+          {
+            "Id": 220317,
+            "Address": " ",
+            "DeptId_Id": 0,
+            "DeptId": null,
+            "FStaffId_Id": 0,
+            "FStaffId": null
+          }
+        ],
+        "SupplierBusiness": [
+          {
+            "Id": 220317,
+            "FreezeLimit": " ",
+            "SettleTypeId_Id": 0,
+            "SettleTypeId": null,
+            "PriceListID_Id": 0,
+            "PriceListID": null,
+            "DiscountListId_Id": 0,
+            "DiscountListId": null,
+            "ProviderId_Id": 3114378,
+            "ProviderId": {
+              "Id": 3114378,
+              "msterID": 3114376,
+              "Number": "010310128",
+              "MultiLanguageText": [
+                {
+                  "PkId": 220317,
+                  "LocaleId": 2052,
+                  "Name": "山东果彩包装材料有限公司"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "山东果彩包装材料有限公司"
+                }
+              ]
+            },
+            "VmiBusiness": false,
+            "DepositRatio": 0
+          }
+        ],
+        "SupplierFinance": [
+          {
+            "Id": 220317,
+            "PayCurrencyId_Id": 1,
+            "PayCurrencyId": {
+              "Id": 1,
+              "msterID": 1,
+              "Number": "PRE001",
+              "MultiLanguageText": [
+                {
+                  "PkId": 2,
+                  "LocaleId": 2052,
+                  "Name": "人民币"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "人民币"
+                }
+              ]
+            },
+            "PayAdvanceAmount": 0,
+            "FTaxType_Id": "9e855eb97bec43e7b50c3e0e0bf51210",
+            "FTaxType": {
+              "Id": "9e855eb97bec43e7b50c3e0e0bf51210",
+              "Number": "SFL02_SYS",
+              "MultiLanguageText": [
+                {
+                  "PkId": "7841e26e9e5a4fe6a83e7cdbe0c24175",
+                  "LocaleId": 2052,
+                  "Name": "一般纳税人"
+                },
+                {
+                  "PkId": "2942b840514242b299738f8b9bbe2095",
+                  "LocaleId": 3076,
+                  "Name": "一般納稅人"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "一般纳税人"
+                },
+                {
+                  "Key": 3076,
+                  "Value": "一般納稅人"
+                }
+              ]
+            },
+            "PayCondition_Id": 0,
+            "PayCondition": null,
+            "SettleId_Id": 3114378,
+            "SettleId": {
+              "Id": 3114378,
+              "msterID": 3114376,
+              "Number": "010310128",
+              "MultiLanguageText": [
+                {
+                  "PkId": 220317,
+                  "LocaleId": 2052,
+                  "Name": "山东果彩包装材料有限公司"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "山东果彩包装材料有限公司"
+                }
+              ]
+            },
+            "ChargeId_Id": 3114378,
+            "ChargeId": {
+              "Id": 3114378,
+              "msterID": 3114376,
+              "Number": "010310128",
+              "MultiLanguageText": [
+                {
+                  "PkId": 220317,
+                  "LocaleId": 2052,
+                  "Name": "山东果彩包装材料有限公司"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "山东果彩包装材料有限公司"
+                }
+              ]
+            }
+          }
+        ],
+        "SupplierLocation": [],
+        "SupplierContact": []
+      },
+      "ChangerId_Id": 0,
+      "ChangerId": null,
+      "VersionNo": "000",
+      "ChangeDate": null,
+      "ChangeReason": " ",
+      "BusinessType": "CG",
+      "ProviderAddress": " ",
+      "AssignSupplierId_Id": 0,
+      "AssignSupplierId": null,
+      "CorrespondOrgId_Id": 0,
+      "CorrespondOrgId": null,
+      "ProviderContact": " ",
+      "IsModificationOperator": false,
+      "NETORDERBILLNO": " ",
+      "NetOrderBillId": 0,
+      "ConfirmStatus": "A",
+      "ConfirmerId_Id": 0,
+      "ConfirmerId": null,
+      "ConfirmDate": null,
+      "ProviderContactId_Id": 0,
+      "ProviderContactId": null,
+      "FSourceBillNo": " ",
+      "ChangeStatus": "A",
+      "FACCTYPE": "Q",
+      "FRelReqStatus": "A",
+      "MANUALCLOSE": false,
+      "ProviderEMail": " ",
+      "CloseReason": " ",
+      "IsMobBill": false,
+      "IsUseDrpSalePOPush": false,
+      "IsCreateStraightOutIN": false,
+      "FContractType": " ",
+      "F_Applicant": "傅俊栋",
+      "F_Approval": " ",
+      "F_VIIH_PrintTimes": 0,
+      "F_VIIH_CheckBox": false,
+      "F_VIIH_Date": null,
+      "F_VIIH_Text": " ",
+      "F_VIIH_Text1": " ",
+      "POOrderFinance": [
+        {
+          "Id": 164971,
+          "BillCost": 0,
+          "BillAmount": 3500,
+          "BillAllAmount": 3500,
+          "PriceListtId_Id": 0,
+          "PriceListtId": null,
+          "DiscountListId_Id": 0,
+          "DiscountListId": null,
+          "SettleCurrId_Id": 1,
+          "SettleCurrId": {
+            "Id": 1,
+            "msterID": 1,
+            "MultiLanguageText": [
+              {
+                "PkId": 2,
+                "LocaleId": 2052,
+                "Name": "人民币"
+              }
+            ],
+            "Name": [
+              {
+                "Key": 2052,
+                "Value": "人民币"
+              }
+            ],
+            "Number": "PRE001",
+            "Sysmbol": "¥",
+            "PriceDigits": 8,
+            "AmountDigits": 2,
+            "IsShowCSymbol": true,
+            "FormatOrder": "1",
+            "RoundType": "1"
+          },
+          "BillTaxAmount": 0,
+          "PriceTimePoint": "1",
+          "LocalCurrId_Id": 1,
+          "LocalCurrId": {
+            "Id": 1,
+            "msterID": 1,
+            "MultiLanguageText": [
+              {
+                "PkId": 2,
+                "LocaleId": 2052,
+                "Name": "人民币"
+              }
+            ],
+            "Name": [
+              {
+                "Key": 2052,
+                "Value": "人民币"
+              }
+            ],
+            "Number": "PRE001",
+            "Sysmbol": "¥",
+            "PriceDigits": 8,
+            "AmountDigits": 2,
+            "IsShowCSymbol": true,
+            "FormatOrder": "1",
+            "RoundType": "1"
+          },
+          "BillAmount_LC": 3500,
+          "BillTaxAmount_LC": 0,
+          "BillAllAmount_LC": 3500,
+          "ExchangeTypeId_Id": 1,
+          "ExchangeTypeId": {
+            "Id": 1,
+            "msterID": 1,
+            "MultiLanguageText": [
+              {
+                "PkId": 1,
+                "LocaleId": 2052,
+                "Name": "固定汇率"
+              }
+            ],
+            "Name": [
+              {
+                "Key": 2052,
+                "Value": "固定汇率"
+              }
+            ],
+            "Number": "HLTX01_SYS",
+            "Digits": 5,
+            "ReverseDigits": 5
+          },
+          "ExchangeRate": 1,
+          "PayConditionId_Id": 0,
+          "PayConditionId": null,
+          "PayAdvanceBillId_Id": 0,
+          "PayAdvanceBillId": null,
+          "IsIncludedTax": true,
+          "SettleModeId_Id": 0,
+          "SettleModeId": null,
+          "PreMatchAmountFor": 0,
+          "SEPSETTLE": false,
+          "FPAYADVANCEAMOUNT": 0,
+          "FSupToOderExchangeBusRate": 0,
+          "FOCUSSETTLEORGID_Id": 0,
+          "FOCUSSETTLEORGID": null,
+          "FISPRICEEXCLUDETAX": true,
+          "DepositRatio": 0,
+          "Deposit": 0,
+          "RelateDeposit": 0,
+          "ApplyRelateDeposit": 0,
+          "RelateRefundDeposit": 0,
+          "AllDisCount": 0,
+          "UPPERBELIEL": 0
+        }
+      ],
+      "POOrderClause": [
+        {
+          "Id": 0,
+          "Seq": 1,
+          "ClauseDesc": null,
+          "ClauseId_Id": 0,
+          "ClauseId": null
+        }
+      ],
+      "POOrderEntry": [
+        {
+          "Id": 292508,
+          "Seq": 1,
+          "MaterialId_Id": 306004,
+          "MaterialId": {
+            "Id": 306004,
+            "msterID": 111249,
+            "MultiLanguageText": [
+              {
+                "PkId": 136039,
+                "LocaleId": 2052,
+                "Name": "水果网兜",
+                "Specification": "带卡扣"
+              }
+            ],
+            "Name": [
+              {
+                "Key": 2052,
+                "Value": "水果网兜"
+              }
+            ],
+            "Number": "030200001",
+            "UseOrgId_Id": 100067,
+            "UseOrgId": {
+              "Id": 100067,
+              "Number": "10002",
+              "MultiLanguageText": [
+                {
+                  "PkId": 100004,
+                  "LocaleId": 2052,
+                  "Name": "山东七河生态农业有限公司"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "山东七河生态农业有限公司"
+                }
+              ]
+            },
+            "Specification": [
+              {
+                "Key": 2052,
+                "Value": "带卡扣"
+              }
+            ],
+            "MaterialGroup_Id": 102757,
+            "MaterialGroup": {
+              "Id": 102757,
+              "Number": "0302",
+              "MultiLanguageText": [
+                {
+                  "PkId": 100076,
+                  "LocaleId": 2052,
+                  "Name": "网兜"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "网兜"
+                }
+              ]
+            },
+            "MaterialCMK": [
+              {
+                "Id": 136040,
+                "FGoodBarCode_CMK": " "
+              }
+            ],
+            "MaterialBase": [
+              {
+                "Id": 136039,
+                "ErpClsID": "1",
+                "IsInventory": true,
+                "BaseUnitId_Id": 10149,
+                "BaseUnitId": {
+                  "Id": 10149,
+                  "msterID": 10149,
+                  "Number": "tao",
+                  "MultiLanguageText": [
+                    {
+                      "PkId": 10153,
+                      "LocaleId": 2052,
+                      "Name": "套"
+                    }
+                  ],
+                  "Name": [
+                    {
+                      "Key": 2052,
+                      "Value": "套"
+                    }
+                  ]
+                },
+                "TaxType_Id": "63489f1e86944c989c58d97893a2aec2",
+                "TaxType": {
+                  "Id": "63489f1e86944c989c58d97893a2aec2",
+                  "Number": "WLDSFL01_SYS",
+                  "MultiLanguageText": [
+                    {
+                      "PkId": "1ac1f2dd4a584f838c73c939d1496e43",
+                      "LocaleId": 2052,
+                      "Name": "标准税率"
+                    }
+                  ],
+                  "Name": [
+                    {
+                      "Key": 2052,
+                      "Value": "标准税率"
+                    }
+                  ]
+                },
+                "CategoryID_Id": 109478,
+                "CategoryID": {
+                  "Id": 109478,
+                  "msterID": 109478,
+                  "Number": "CHLB08_SYS",
+                  "MultiLanguageText": [
+                    {
+                      "PkId": 100002,
+                      "LocaleId": 2052,
+                      "Name": "周转材料"
+                    }
+                  ],
+                  "Name": [
+                    {
+                      "Key": 2052,
+                      "Value": "周转材料"
+                    }
+                  ]
+                }
+              }
+            ],
+            "MaterialStock": [
+              {
+                "Id": 136039,
+                "StoreUnitID_Id": 10149,
+                "StoreUnitID": {
+                  "Id": 10149,
+                  "msterID": 10149,
+                  "Number": "tao",
+                  "MultiLanguageText": [
+                    {
+                      "PkId": 10153,
+                      "LocaleId": 2052,
+                      "Name": "套"
+                    }
+                  ],
+                  "Name": [
+                    {
+                      "Key": 2052,
+                      "Value": "套"
+                    }
+                  ]
+                },
+                "StockId_Id": 0,
+                "StockId": null,
+                "StockPlaceId_Id": 0,
+                "StockPlaceId": null,
+                "IsBatchManage": false,
+                "IsExpParToFlot": false
+              }
+            ],
+            "MaterialSale": [
+              {
+                "Id": 136039,
+                "SalePriceUnitId_Id": 10149,
+                "SalePriceUnitId": {
+                  "Id": 10149,
+                  "msterID": 10149,
+                  "Number": "tao",
+                  "MultiLanguageText": [
+                    {
+                      "PkId": 10153,
+                      "LocaleId": 2052,
+                      "Name": "套"
+                    }
+                  ],
+                  "Name": [
+                    {
+                      "Key": 2052,
+                      "Value": "套"
+                    }
+                  ]
+                },
+                "SaleUnitId_Id": 10149,
+                "SaleUnitId": {
+                  "Id": 10149,
+                  "msterID": 10149,
+                  "Number": "tao",
+                  "MultiLanguageText": [
+                    {
+                      "PkId": 10153,
+                      "LocaleId": 2052,
+                      "Name": "套"
+                    }
+                  ],
+                  "Name": [
+                    {
+                      "Key": 2052,
+                      "Value": "套"
+                    }
+                  ]
+                }
+              }
+            ],
+            "MaterialPurchase": [
+              {
+                "Id": 136039,
+                "PurchaseUnitID_Id": 10149,
+                "PurchaseUnitID": {
+                  "Id": 10149,
+                  "msterID": 10149,
+                  "Number": "tao",
+                  "MultiLanguageText": [
+                    {
+                      "PkId": 10153,
+                      "LocaleId": 2052,
+                      "Name": "套"
+                    }
+                  ],
+                  "Name": [
+                    {
+                      "Key": 2052,
+                      "Value": "套"
+                    }
+                  ]
+                },
+                "IsSourceControl": false,
+                "IsPR": false,
+                "ReceiveMinScale": 0,
+                "ReceiveMaxScale": 0,
+                "PurchasePriceUnitId_Id": 10149,
+                "PurchasePriceUnitId": {
+                  "Id": 10149,
+                  "msterID": 10149,
+                  "Number": "tao",
+                  "MultiLanguageText": [
+                    {
+                      "PkId": 10153,
+                      "LocaleId": 2052,
+                      "Name": "套"
+                    }
+                  ],
+                  "Name": [
+                    {
+                      "Key": 2052,
+                      "Value": "套"
+                    }
+                  ]
+                },
+                "ReceiveAdvanceDays": 0,
+                "ReceiveDelayDays": 0,
+                "PurURNum": 1,
+                "PurPriceURNum": 1,
+                "PurURNom": 1,
+                "PurPriceURNom": 1,
+                "ChargeID_Id": 0,
+                "ChargeID": null,
+                "IsReturnMaterial": true
+              }
+            ],
+            "MaterialPlan": [
+              {
+                "Id": 136039,
+                "MinPOQty": 0,
+                "IncreaseQty": 0,
+                "MaxPOQty": 100000,
+                "PlanMode": "0"
+              }
+            ],
+            "MaterialAuxPty": [
+              {
+                "Id": 134453,
+                "IsEnable1": false,
+                "IsAffectPlan": false,
+                "IsComControl": false,
+                "AuxPropertyId_Id": 100001,
+                "AuxPropertyId": {
+                  "Id": 100001,
+                  "msterID": 0,
+                  "Number": "wldj",
+                  "MultiLanguageText": [
+                    {
+                      "PkId": 100001,
+                      "LocaleId": 2052,
+                      "Name": "物料等级"
+                    }
+                  ],
+                  "Name": [
+                    {
+                      "Key": 2052,
+                      "Value": "物料等级"
+                    }
+                  ]
+                }
+              }
+            ],
+            "MaterialInvPty": [
+              {
+                "Id": 280175,
+                "IsEnable": true,
+                "IsAffectPlan": false,
+                "InvPtyId_Id": 10001,
+                "InvPtyId": {
+                  "Id": 10001,
+                  "msterID": 10001,
+                  "Number": "01",
+                  "MultiLanguageText": [
+                    {
+                      "PkId": 10008,
+                      "LocaleId": 2052,
+                      "Name": "仓库"
+                    }
+                  ],
+                  "Name": [
+                    {
+                      "Key": 2052,
+                      "Value": "仓库"
+                    }
+                  ]
+                }
+              },
+              {
+                "Id": 280176,
+                "IsEnable": true,
+                "IsAffectPlan": false,
+                "InvPtyId_Id": 10002,
+                "InvPtyId": {
+                  "Id": 10002,
+                  "msterID": 10002,
+                  "Number": "02",
+                  "MultiLanguageText": [
+                    {
+                      "PkId": 10013,
+                      "LocaleId": 2052,
+                      "Name": "仓位"
+                    }
+                  ],
+                  "Name": [
+                    {
+                      "Key": 2052,
+                      "Value": "仓位"
+                    }
+                  ]
+                }
+              },
+              {
+                "Id": 280177,
+                "IsEnable": false,
+                "IsAffectPlan": false,
+                "InvPtyId_Id": 10003,
+                "InvPtyId": {
+                  "Id": 10003,
+                  "msterID": 10003,
+                  "Number": "03",
+                  "MultiLanguageText": [
+                    {
+                      "PkId": 10016,
+                      "LocaleId": 2052,
+                      "Name": "BOM版本"
+                    }
+                  ],
+                  "Name": [
+                    {
+                      "Key": 2052,
+                      "Value": "BOM版本"
+                    }
+                  ]
+                }
+              },
+              {
+                "Id": 280178,
+                "IsEnable": false,
+                "IsAffectPlan": false,
+                "InvPtyId_Id": 10004,
+                "InvPtyId": {
+                  "Id": 10004,
+                  "msterID": 10004,
+                  "Number": "04",
+                  "MultiLanguageText": [
+                    {
+                      "PkId": 10019,
+                      "LocaleId": 2052,
+                      "Name": "批号"
+                    }
+                  ],
+                  "Name": [
+                    {
+                      "Key": 2052,
+                      "Value": "批号"
+                    }
+                  ]
+                }
+              },
+              {
+                "Id": 280179,
+                "IsEnable": false,
+                "IsAffectPlan": false,
+                "InvPtyId_Id": 10006,
+                "InvPtyId": {
+                  "Id": 10006,
+                  "msterID": 10006,
+                  "Number": "06",
+                  "MultiLanguageText": [
+                    {
+                      "PkId": 10025,
+                      "LocaleId": 2052,
+                      "Name": "计划跟踪号"
+                    }
+                  ],
+                  "Name": [
+                    {
+                      "Key": 2052,
+                      "Value": "计划跟踪号"
+                    }
+                  ]
+                }
+              }
+            ],
+            "MaterialQM": [
+              {
+                "Id": 136039,
+                "CheckIncoming": false
+              }
+            ]
+          },
+          "Qty": 50000,
+          "Price": 0.07,
+          "DiscountRate": 0,
+          "TaxRate": 0,
+          "TaxNetPrice": 0.07,
+          "Amount": 3500,
+          "AllAmount": 3500,
+          "Discount": 0,
+          "Discount_Detail": [],
+          "Note": " ",
+          "ReceiveQty": 0,
+          "StockInQty": 0,
+          "InvoiceQty": 0,
+          "InvoiceAmount": 0,
+          "PayAmount": 0,
+          "PriceCoefficient": 1,
+          "PriceUnitQty": 50000,
+          "RequireDeptId_Id": 113793,
+          "RequireDeptId": {
+            "Id": 113793,
+            "msterID": 113793,
+            "MultiLanguageText": [
+              {
+                "PkId": 100224,
+                "LocaleId": 2052,
+                "Name": "行政后勤"
+              }
+            ],
+            "Name": [
+              {
+                "Key": 2052,
+                "Value": "行政后勤"
+              }
+            ],
+            "Number": "0000000",
+            "UseOrgId_Id": 100067,
+            "UseOrgId": {
+              "Id": 100067,
+              "Number": "10002",
+              "MultiLanguageText": [
+                {
+                  "PkId": 100004,
+                  "LocaleId": 2052,
+                  "Name": "山东七河生态农业有限公司"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "山东七河生态农业有限公司"
+                }
+              ]
+            }
+          },
+          "RequireStaffId_Id": 0,
+          "RequireStaffId": null,
+          "FLocationId_Id": 0,
+          "FLocationId": null,
+          "LocationAddress": " ",
+          "DeliveryControl": false,
+          "DeliveryBeforeDays": 0,
+          "DeliveryDelayDays": 0,
+          "TimeControl": false,
+          "MRPFreezeStatus": "A",
+          "MRPTerminateStatus": "A",
+          "MRPCloseStatus": "A",
+          "SupplierLot": " ",
+          "RemainReceiveQty": 50000,
+          "RemainStockInQty": 50000,
+          "TaxPrice": 0.07,
+          "TaxAmount": 0,
+          "FreezerId_Id": 0,
+          "FreezerId": null,
+          "FreezeDate": null,
+          "TerminaterId_Id": 0,
+          "TerminaterId": null,
+          "TerminateDate": null,
+          "ReceiveOrgId_Id": 100067,
+          "ReceiveOrgId": {
+            "Id": 100067,
+            "MultiLanguageText": [
+              {
+                "PkId": 100004,
+                "LocaleId": 2052,
+                "Name": "山东七河生态农业有限公司"
+              }
+            ],
+            "Name": [
+              {
+                "Key": 2052,
+                "Value": "山东七河生态农业有限公司"
+              }
+            ],
+            "Number": "10002"
+          },
+          "RequireOrgId_Id": 100067,
+          "RequireOrgId": {
+            "Id": 100067,
+            "MultiLanguageText": [
+              {
+                "PkId": 100004,
+                "LocaleId": 2052,
+                "Name": "山东七河生态农业有限公司"
+              }
+            ],
+            "Name": [
+              {
+                "Key": 2052,
+                "Value": "山东七河生态农业有限公司"
+              }
+            ],
+            "Number": "10002"
+          },
+          "RowCost": 0,
+          "PayOrgId_Id": 100067,
+          "PayOrgId": {
+            "Id": 100067,
+            "MultiLanguageText": [
+              {
+                "PkId": 100004,
+                "LocaleId": 2052,
+                "Name": "山东七河生态农业有限公司"
+              }
+            ],
+            "Name": [
+              {
+                "Key": 2052,
+                "Value": "山东七河生态农业有限公司"
+              }
+            ],
+            "Number": "10002"
+          },
+          "SettleOrgId_Id": 100067,
+          "SettleOrgId": {
+            "Id": 100067,
+            "MultiLanguageText": [
+              {
+                "PkId": 100004,
+                "LocaleId": 2052,
+                "Name": "山东七河生态农业有限公司"
+              }
+            ],
+            "Name": [
+              {
+                "Key": 2052,
+                "Value": "山东七河生态农业有限公司"
+              }
+            ],
+            "Number": "10002"
+          },
+          "Processer_Id": 0,
+          "Processer": null,
+          "SysPrice": 0,
+          "UpPrice": 0,
+          "DownPrice": 0,
+          "BillDisApportion": 0,
+          "PlanConfirm": true,
+          "BomId_Id": 0,
+          "BomId": null,
+          "MrbQty": 0,
+          "ChangeFlag": "N",
+          "Amount_LC": 3500,
+          "AllAmount_LC": 3500,
+          "TaxAmount_LC": 0,
+          "BaseAPJoinQty": 0,
+          "DeliveryStockStatus_Id": 10001,
+          "DeliveryStockStatus": {
+            "Id": 10001,
+            "msterID": 10001,
+            "MultiLanguageText": [
+              {
+                "PkId": 3,
+                "LocaleId": 2052,
+                "Name": "待检"
+              }
+            ],
+            "Name": [
+              {
+                "Key": 2052,
+                "Value": "待检"
+              }
+            ],
+            "Number": "KCZT02_SYS"
+          },
+          "UnitId_Id": 10149,
+          "UnitId": {
+            "Id": 10149,
+            "msterID": 10149,
+            "MultiLanguageText": [
+              {
+                "PkId": 10153,
+                "LocaleId": 2052,
+                "Name": "套"
+              }
+            ],
+            "Name": [
+              {
+                "Key": 2052,
+                "Value": "套"
+              }
+            ],
+            "Number": "tao",
+            "Precision": 0,
+            "RoundType": "1",
+            "UNITCONVERTRATE": [
+              {
+                "Id": 10165,
+                "ConvertType": "0"
+              }
+            ]
+          },
+          "PriceUnitId_Id": 10149,
+          "PriceUnitId": {
+            "Id": 10149,
+            "msterID": 10149,
+            "MultiLanguageText": [
+              {
+                "PkId": 10153,
+                "LocaleId": 2052,
+                "Name": "套"
+              }
+            ],
+            "Name": [
+              {
+                "Key": 2052,
+                "Value": "套"
+              }
+            ],
+            "Number": "tao",
+            "Precision": 0,
+            "RoundType": "1",
+            "UNITCONVERTRATE": [
+              {
+                "Id": 10165,
+                "ConvertType": "0"
+              }
+            ]
+          },
+          "BaseUnitId_Id": 10149,
+          "BaseUnitId": {
+            "Id": 10149,
+            "msterID": 10149,
+            "MultiLanguageText": [
+              {
+                "PkId": 10153,
+                "LocaleId": 2052,
+                "Name": "套"
+              }
+            ],
+            "Name": [
+              {
+                "Key": 2052,
+                "Value": "套"
+              }
+            ],
+            "Number": "tao",
+            "Precision": 0,
+            "RoundType": "1",
+            "UNITCONVERTRATE": [
+              {
+                "Id": 10165,
+                "ConvertType": "0"
+              }
+            ]
+          },
+          "BASEMRBQTY": 0,
+          "BASERECEIVEQTY": 0,
+          "BASESTOCKINQTY": 0,
+          "JOINQTY": 0,
+          "BaseJoinQty": 0,
+          "AuxPropId_Id": 0,
+          "AuxPropId": null,
+          "ContractNo": " ",
+          "ReqTraceNo": " ",
+          "SrcBillTypeId": " ",
+          "SrcBillNo": " ",
+          "FTaxCombination_Id": 0,
+          "FTaxCombination": null,
+          "FLot_Id": 0,
+          "FLot": null,
+          "FLot_Text": " ",
+          "DeliveryMaxQty": 50000,
+          "DeliveryMinQty": 50000,
+          "Location": " ",
+          "DeliveryLastDate": "2026-07-12T23:59:59",
+          "DeliveryEarlyDate": "2026-07-12T08:15:00.76",
+          "BaseDeliveryMaxQty": 50000,
+          "BaseDeliveryMinQty": 50000,
+          "BaseUnitQty": 50000,
+          "InventoryQty": 0,
+          "MultiLanguageText": [
+            {
+              "PkId": 292144,
+              "LocaleId": 2052,
+              "MaterialDesc": "水果网兜"
+            }
+          ],
+          "MaterialDesc": [
+            {
+              "Key": 2052,
+              "Value": "水果网兜"
+            }
+          ],
+          "ProductType": "1",
+          "CopyEntryId": 0,
+          "RowId": " ",
+          "ParentRowId": " ",
+          "Group": 0,
+          "BASECHECKRETQTY": 0,
+          "BASESTOCKRETQTY": 0,
+          "CHECKRETQTY": 0,
+          "STOCKRETQTY": 0,
+          "FBFLowId_Id": " ",
+          "FBFLowId": null,
+          "SupMatId": " ",
+          "SupMatName": " ",
+          "EntrySettleModeId_Id": 0,
+          "EntrySettleModeId": null,
+          "DeliveryDate": "2026-07-12T08:15:00.76",
+          "MtoNo": " ",
+          "GiveAway": false,
+          "CentSettleOrgId_Id": 0,
+          "CentSettleOrgId": null,
+          "DispSettleOrgId_Id": 0,
+          "DispSettleOrgId": null,
+          "APJoinAmount": 0,
+          "ChargeProjectID_Id": 0,
+          "ChargeProjectID": null,
+          "ReceiveDeptId_Id": 0,
+          "ReceiveDeptId": null,
+          "MaxPrice": 0,
+          "MinPrice": 0,
+          "IsStock": true,
+          "ConsumeSumQty": 0,
+          "FBaseConsumeSumQty": 0,
+          "BaseSalJoinQty": 0,
+          "SalJoinQty": 0,
+          "NetOrderEntryId": 0,
+          "PriceBaseQty": 50000,
+          "SetPriceUnitID_Id": 0,
+          "SetPriceUnitID": null,
+          "SalUnitID_Id": 10149,
+          "SalUnitID": {
+            "Id": 10149,
+            "msterID": 10149,
+            "MultiLanguageText": [
+              {
+                "PkId": 10153,
+                "LocaleId": 2052,
+                "Name": "套"
+              }
+            ],
+            "Name": [
+              {
+                "Key": 2052,
+                "Value": "套"
+              }
+            ],
+            "Number": "tao",
+            "Precision": 0,
+            "RoundType": "1",
+            "UNITCONVERTRATE": [
+              {
+                "Id": 10165,
+                "ConvertType": "0"
+              }
+            ]
+          },
+          "SalQty": 50000,
+          "SalBaseQty": 50000,
+          "StockUnitID_Id": 10149,
+          "StockUnitID": {
+            "Id": 10149,
+            "msterID": 10149,
+            "MultiLanguageText": [
+              {
+                "PkId": 10153,
+                "LocaleId": 2052,
+                "Name": "套"
+              }
+            ],
+            "Name": [
+              {
+                "Key": 2052,
+                "Value": "套"
+              }
+            ],
+            "Number": "tao",
+            "Precision": 0,
+            "RoundType": "1",
+            "UNITCONVERTRATE": [
+              {
+                "Id": 10165,
+                "ConvertType": "0"
+              }
+            ]
+          },
+          "StockQty": 50000,
+          "StockBaseQty": 50000,
+          "SRCBIZUNITID_Id": 0,
+          "SRCBIZUNITID": null,
+          "PurBaseNum": 0,
+          "StockBaseDen": 0,
+          "STOCKJOINBASEQTY": 0,
+          "StockBaseSalJoinQty": 0,
+          "StockBaseAPJoinQty": 0,
+          "STOCKBASESTOCKINQTY": 0,
+          "PriceListEntry_Id": 0,
+          "PriceListEntry": null,
+          "SubOrgId_Id": 0,
+          "SubOrgId": null,
+          "IsQuota": false,
+          "DEMANDTYPE": " ",
+          "DEMANDBILLNO": " ",
+          "DEMANDBILLENTRYSEQ": 0,
+          "DEMANDBILLENTRYID": 0,
+          "RowType": "Standard",
+          "PARENTMATID_Id": 0,
+          "PARENTMATID": null,
+          "PARENTBOMID_Id": 0,
+          "PARENTBOMID": null,
+          "PriceDiscount": 0,
+          "PRILSTENTRYID": 0,
+          "FBarcode": " ",
+          "FBranchId_Id": 0,
+          "FBranchId": null,
+          "BASEFINAPQTY": 0,
+          "BASECHECKCUTPAYQTY": 0,
+          "SAMPLEDAMAGEBASEQTY": 0,
+          "SUMACCALLAMOUNT": 0,
+          "SUMACCRATE": 0,
+          "STOCKBASEFINAPQTY": 0,
+          "TailDiffFlag": false,
+          "AllAmountExceptDisCount": 3500,
+          "InqueryGetId": 0,
+          "WBADUBASEPURQTY": 0,
+          "WBADUBASESTOCKQTY": 0,
+          "WWPickMtlQty": 0,
+          "MYDAMAGESAMPLEBASEQTY": 0,
+          "SUBREQBILLNO": " ",
+          "SUBREQBILLSEQ": 0,
+          "SUBREQENTRYID": 0,
+          "RepOldMaterialNumber": " ",
+          "IsRepMaterial": false,
+          "Fcgptid": "105530",
+          "FStockId_Id": 644724,
+          "FStockId": {
+            "Id": 644724,
+            "msterID": 644724,
+            "MultiLanguageText": [
+              {
+                "PkId": 100230,
+                "LocaleId": 2052,
+                "Name": "西楼周转材料库"
+              }
+            ],
+            "Name": [
+              {
+                "Key": 2052,
+                "Value": "西楼周转材料库"
+              }
+            ],
+            "Number": "100029103",
+            "LocListFormatter": "3",
+            "StockFlexItem": []
+          },
+          "F_zcdhrq": null,
+          "F_VIIH_dengji_Id": " ",
+          "F_VIIH_dengji": null,
+          "POOrderEntryDeliPlan": [
+            {
+              "Id": 292507,
+              "Seq": 1,
+              "DeliCommitQty": 0,
+              "DeliRemainQty": 50000,
+              "PlanQty": 50000,
+              "ELocationId_Id": 0,
+              "ELocationId": null,
+              "ELocationAddress": " ",
+              "BasePlanQty": 50000,
+              "BaseDeliCommitQty": 0,
+              "BaseDeliRemainQty": 50000,
+              "PlanUnitID_Id": 10149,
+              "PlanUnitID": {
+                "Id": 10149,
+                "msterID": 10149,
+                "MultiLanguageText": [
+                  {
+                    "PkId": 10153,
+                    "LocaleId": 2052,
+                    "Name": "套"
+                  }
+                ],
+                "Name": [
+                  {
+                    "Key": 2052,
+                    "Value": "套"
+                  }
+                ],
+                "Number": "tao",
+                "Precision": 0,
+                "RoundType": "1",
+                "UNITCONVERTRATE": [
+                  {
+                    "Id": 10165,
+                    "ConvertType": "0"
+                  }
+                ]
+              },
+              "PlanBaseUnitID_Id": 10149,
+              "PlanBaseUnitID": {
+                "Id": 10149,
+                "msterID": 10149,
+                "MultiLanguageText": [
+                  {
+                    "PkId": 10153,
+                    "LocaleId": 2052,
+                    "Name": "套"
+                  }
+                ],
+                "Name": [
+                  {
+                    "Key": 2052,
+                    "Value": "套"
+                  }
+                ],
+                "Number": "tao",
+                "Precision": 0,
+                "RoundType": "1",
+                "UNITCONVERTRATE": [
+                  {
+                    "Id": 10165,
+                    "ConvertType": "0"
+                  }
+                ]
+              },
+              "PlanDeliveryDate": "2026-07-12T08:15:00.76",
+              "FSUPPLIERDELIVERYDATE": "2026-07-12T00:00:00",
+              "FTRLT": 0,
+              "FPREARRIVALDATE": "2026-07-12T00:00:00",
+              "ConfirmDeliQty": 0,
+              "ConfirmDeliDate": null,
+              "ConfirmInfo": " ",
+              "ELocation": " "
+            }
+          ],
+          "POORDERENTRY_TAX": [],
+          "FPOOrderEntry_Link": []
+        }
+      ],
+      "FIinstallment": [],
+      "POOrderPay": [
+        {
+          "Id": 0,
+          "ALLPAYAPPLYAMOUNT": 0,
+          "ALLPAYAMOUNT": 0,
+          "ALLAPPYNOPAYAMOUNT": 0,
+          "PAYRELATAMOUNT": 0,
+          "PAYNOTRELATAMOUNT": 0,
+          "APNOTRELATAMOUNT": 0,
+          "ALLREFUNDAMOUNT": 0,
+          "ALLNOPAYAMOUNT": 0
+        }
+      ],
+      "PaymentEntry": [
+        {
+          "Id": 0,
+          "ORMID_Id": "",
+          "ORMID": null,
+          "RELATBILLNO": null,
+          "PAYAPPLYAMOUNT": 0,
+          "AMAmount": 0,
+          "TYPE": "",
+          "REFUNDAMOUNT": 0,
+          "FPAYDATE": null
+        }
+      ],
+      "BOS_ConvertTakeDataInfo": null
+    }
+  },
+  "stkInStock": {
+    "Result": {
+      "Id": 175012,
+      "FFormId": "STK_InStock",
+      "SrcEntityDisa": " ",
+      "BillNo": "CGRK202607110029",
+      "DocumentStatus": "C",
+      "StockOrgId_Id": 100068,
+      "StockOrgId": {
+        "Id": 100068,
+        "MultiLanguageText": [
+          {
+            "PkId": 100005,
+            "LocaleId": 2052,
+            "Name": "山东源河食用菌种植有限公司"
+          }
+        ],
+        "Name": [
+          {
+            "Key": 2052,
+            "Value": "山东源河食用菌种植有限公司"
+          }
+        ],
+        "Number": "10003"
+      },
+      "Date": "2026-07-11T00:00:00",
+      "FBillTypeID_Id": "a1ff32276cd9469dad3bf2494366fa4f",
+      "FBillTypeID": {
+        "Id": "a1ff32276cd9469dad3bf2494366fa4f",
+        "MultiLanguageText": [
+          {
+            "PkId": "eedd839722cf4fd290c0fcabc4098a44",
+            "LocaleId": 2052,
+            "Name": "标准采购入库"
+          }
+        ],
+        "Name": [
+          {
+            "Key": 2052,
+            "Value": "标准采购入库"
+          }
+        ],
+        "Number": "RKD01_SYS"
+      },
+      "OwnerTypeIdHead": "BD_OwnerOrg",
+      "OwnerIdHead_Id": 100068,
+      "OwnerIdHead": {
+        "Id": 100068,
+        "msterID": 100068,
+        "MultiLanguageText": [
+          {
+            "PkId": 100005,
+            "LocaleId": 2052,
+            "Name": "山东源河食用菌种植有限公司"
+          }
+        ],
+        "Name": [
+          {
+            "Key": 2052,
+            "Value": "山东源河食用菌种植有限公司"
+          }
+        ],
+        "Number": "10003"
+      },
+      "DemandOrgId_Id": 100068,
+      "DemandOrgId": {
+        "Id": 100068,
+        "MultiLanguageText": [
+          {
+            "PkId": 100005,
+            "LocaleId": 2052,
+            "Name": "山东源河食用菌种植有限公司"
+          }
+        ],
+        "Name": [
+          {
+            "Key": 2052,
+            "Value": "山东源河食用菌种植有限公司"
+          }
+        ],
+        "Number": "10003"
+      },
+      "PurchaseOrgId_Id": 100068,
+      "PurchaseOrgId": {
+        "Id": 100068,
+        "MultiLanguageText": [
+          {
+            "PkId": 100005,
+            "LocaleId": 2052,
+            "Name": "山东源河食用菌种植有限公司"
+          }
+        ],
+        "Name": [
+          {
+            "Key": 2052,
+            "Value": "山东源河食用菌种植有限公司"
+          }
+        ],
+        "Number": "10003"
+      },
+      "SupplierId_Id": 3150507,
+      "SupplierId": {
+        "Id": 3150507,
+        "msterID": 3150502,
+        "MultiLanguageText": [
+          {
+            "PkId": 222029,
+            "LocaleId": 2052,
+            "Name": "周口市淮阳区觅新塑料产品销售店（个体工商户）"
+          }
+        ],
+        "Name": [
+          {
+            "Key": 2052,
+            "Value": "周口市淮阳区觅新塑料产品销售店（个体工商户）"
+          }
+        ],
+        "Number": "010210010",
+        "CorrespondOrgId_Id": 0,
+        "CorrespondOrgId": null,
+        "SupplierBase": [
+          {
+            "Id": 222029,
+            "Address": " ",
+            "SupplyClassify": "CG"
+          }
+        ],
+        "SupplierBusiness": [
+          {
+            "Id": 222029,
+            "PriceListID_Id": 0,
+            "PriceListID": null,
+            "DiscountListId_Id": 0,
+            "DiscountListId": null,
+            "ProviderId_Id": 3150507,
+            "ProviderId": {
+              "Id": 3150507,
+              "msterID": 3150502,
+              "Number": "010210010",
+              "MultiLanguageText": [
+                {
+                  "PkId": 222029,
+                  "LocaleId": 2052,
+                  "Name": "周口市淮阳区觅新塑料产品销售店（个体工商户）"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "周口市淮阳区觅新塑料产品销售店（个体工商户）"
+                }
+              ]
+            },
+            "VmiStockId_Id": 0,
+            "VmiStockId": null,
+            "VmiBusiness": false
+          }
+        ],
+        "SupplierFinance": [
+          {
+            "Id": 222029,
+            "FTaxType_Id": "9e855eb97bec43e7b50c3e0e0bf51210",
+            "FTaxType": {
+              "Id": "9e855eb97bec43e7b50c3e0e0bf51210",
+              "Number": "SFL02_SYS",
+              "MultiLanguageText": [
+                {
+                  "PkId": "7841e26e9e5a4fe6a83e7cdbe0c24175",
+                  "LocaleId": 2052,
+                  "Name": "一般纳税人"
+                },
+                {
+                  "PkId": "2942b840514242b299738f8b9bbe2095",
+                  "LocaleId": 3076,
+                  "Name": "一般納稅人"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "一般纳税人"
+                },
+                {
+                  "Key": 3076,
+                  "Value": "一般納稅人"
+                }
+              ]
+            },
+            "PayCondition_Id": 0,
+            "PayCondition": null,
+            "SettleId_Id": 3150507,
+            "SettleId": {
+              "Id": 3150507,
+              "msterID": 3150502,
+              "Number": "010210010",
+              "MultiLanguageText": [
+                {
+                  "PkId": 222029,
+                  "LocaleId": 2052,
+                  "Name": "周口市淮阳区觅新塑料产品销售店（个体工商户）"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "周口市淮阳区觅新塑料产品销售店（个体工商户）"
+                }
+              ]
+            },
+            "ChargeId_Id": 3150507,
+            "ChargeId": {
+              "Id": 3150507,
+              "msterID": 3150502,
+              "Number": "010210010",
+              "MultiLanguageText": [
+                {
+                  "PkId": 222029,
+                  "LocaleId": 2052,
+                  "Name": "周口市淮阳区觅新塑料产品销售店（个体工商户）"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "周口市淮阳区觅新塑料产品销售店（个体工商户）"
+                }
+              ]
+            }
+          }
+        ],
+        "SupplierLocation": [],
+        "SupplierContact": []
+      },
+      "StockerGroupId_Id": 0,
+      "StockerGroupId": null,
+      "StockDeptId_Id": 0,
+      "StockDeptId": null,
+      "StockerId_Id": 0,
+      "StockerId": null,
+      "CreatorId_Id": 1829256,
+      "CreatorId": {
+        "Id": 1829256,
+        "Name": "王玉珍",
+        "UserAccount": "QH005038"
+      },
+      "CreateDate": "2026-07-12T08:57:39.59",
+      "FModifierId_Id": 1829256,
+      "FModifierId": {
+        "Id": 1829256,
+        "Name": "王玉珍",
+        "UserAccount": "QH005038"
+      },
+      "FModifyDate": "2026-07-12T08:57:40.463",
+      "ApproverId_Id": 1829256,
+      "ApproverId": {
+        "Id": 1829256,
+        "Name": "王玉珍",
+        "UserAccount": "QH005038"
+      },
+      "CancelDate": null,
+      "DeliveryBill": " ",
+      "TakeDeliveryBill": " ",
+      "CancellerId_Id": 0,
+      "CancellerId": null,
+      "ApproveDate": "2026-07-12T08:57:48.04",
+      "CancelStatus": "A",
+      "PurchaseDeptId_Id": 0,
+      "PurchaseDeptId": null,
+      "PurchaserGroupId_Id": 0,
+      "PurchaserGroupId": null,
+      "PurchaserId_Id": 0,
+      "PurchaserId": null,
+      "SupplyId_Id": 3150507,
+      "SupplyId": {
+        "Id": 3150507,
+        "msterID": 3150502,
+        "MultiLanguageText": [
+          {
+            "PkId": 222029,
+            "LocaleId": 2052,
+            "Name": "周口市淮阳区觅新塑料产品销售店（个体工商户）"
+          }
+        ],
+        "Name": [
+          {
+            "Key": 2052,
+            "Value": "周口市淮阳区觅新塑料产品销售店（个体工商户）"
+          }
+        ],
+        "Number": "010210010",
+        "CorrespondOrgId_Id": 0,
+        "CorrespondOrgId": null,
+        "SupplierBase": [
+          {
+            "Id": 222029,
+            "Address": " ",
+            "SupplyClassify": "CG"
+          }
+        ],
+        "SupplierBusiness": [
+          {
+            "Id": 222029,
+            "PriceListID_Id": 0,
+            "PriceListID": null,
+            "DiscountListId_Id": 0,
+            "DiscountListId": null,
+            "ProviderId_Id": 3150507,
+            "ProviderId": {
+              "Id": 3150507,
+              "msterID": 3150502,
+              "Number": "010210010",
+              "MultiLanguageText": [
+                {
+                  "PkId": 222029,
+                  "LocaleId": 2052,
+                  "Name": "周口市淮阳区觅新塑料产品销售店（个体工商户）"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "周口市淮阳区觅新塑料产品销售店（个体工商户）"
+                }
+              ]
+            },
+            "VmiStockId_Id": 0,
+            "VmiStockId": null,
+            "VmiBusiness": false
+          }
+        ],
+        "SupplierFinance": [
+          {
+            "Id": 222029,
+            "FTaxType_Id": "9e855eb97bec43e7b50c3e0e0bf51210",
+            "FTaxType": {
+              "Id": "9e855eb97bec43e7b50c3e0e0bf51210",
+              "Number": "SFL02_SYS",
+              "MultiLanguageText": [
+                {
+                  "PkId": "7841e26e9e5a4fe6a83e7cdbe0c24175",
+                  "LocaleId": 2052,
+                  "Name": "一般纳税人"
+                },
+                {
+                  "PkId": "2942b840514242b299738f8b9bbe2095",
+                  "LocaleId": 3076,
+                  "Name": "一般納稅人"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "一般纳税人"
+                },
+                {
+                  "Key": 3076,
+                  "Value": "一般納稅人"
+                }
+              ]
+            },
+            "PayCondition_Id": 0,
+            "PayCondition": null,
+            "SettleId_Id": 3150507,
+            "SettleId": {
+              "Id": 3150507,
+              "msterID": 3150502,
+              "Number": "010210010",
+              "MultiLanguageText": [
+                {
+                  "PkId": 222029,
+                  "LocaleId": 2052,
+                  "Name": "周口市淮阳区觅新塑料产品销售店（个体工商户）"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "周口市淮阳区觅新塑料产品销售店（个体工商户）"
+                }
+              ]
+            },
+            "ChargeId_Id": 3150507,
+            "ChargeId": {
+              "Id": 3150507,
+              "msterID": 3150502,
+              "Number": "010210010",
+              "MultiLanguageText": [
+                {
+                  "PkId": 222029,
+                  "LocaleId": 2052,
+                  "Name": "周口市淮阳区觅新塑料产品销售店（个体工商户）"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "周口市淮阳区觅新塑料产品销售店（个体工商户）"
+                }
+              ]
+            }
+          }
+        ],
+        "SupplierLocation": [],
+        "SupplierContact": []
+      },
+      "SettleId_Id": 3150507,
+      "SettleId": {
+        "Id": 3150507,
+        "msterID": 3150502,
+        "MultiLanguageText": [
+          {
+            "PkId": 222029,
+            "LocaleId": 2052,
+            "Name": "周口市淮阳区觅新塑料产品销售店（个体工商户）"
+          }
+        ],
+        "Name": [
+          {
+            "Key": 2052,
+            "Value": "周口市淮阳区觅新塑料产品销售店（个体工商户）"
+          }
+        ],
+        "Number": "010210010",
+        "CorrespondOrgId_Id": 0,
+        "CorrespondOrgId": null,
+        "SupplierBase": [
+          {
+            "Id": 222029,
+            "Address": " ",
+            "SupplyClassify": "CG"
+          }
+        ],
+        "SupplierBusiness": [
+          {
+            "Id": 222029,
+            "PriceListID_Id": 0,
+            "PriceListID": null,
+            "DiscountListId_Id": 0,
+            "DiscountListId": null,
+            "ProviderId_Id": 3150507,
+            "ProviderId": {
+              "Id": 3150507,
+              "msterID": 3150502,
+              "Number": "010210010",
+              "MultiLanguageText": [
+                {
+                  "PkId": 222029,
+                  "LocaleId": 2052,
+                  "Name": "周口市淮阳区觅新塑料产品销售店（个体工商户）"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "周口市淮阳区觅新塑料产品销售店（个体工商户）"
+                }
+              ]
+            },
+            "VmiStockId_Id": 0,
+            "VmiStockId": null,
+            "VmiBusiness": false
+          }
+        ],
+        "SupplierFinance": [
+          {
+            "Id": 222029,
+            "FTaxType_Id": "9e855eb97bec43e7b50c3e0e0bf51210",
+            "FTaxType": {
+              "Id": "9e855eb97bec43e7b50c3e0e0bf51210",
+              "Number": "SFL02_SYS",
+              "MultiLanguageText": [
+                {
+                  "PkId": "7841e26e9e5a4fe6a83e7cdbe0c24175",
+                  "LocaleId": 2052,
+                  "Name": "一般纳税人"
+                },
+                {
+                  "PkId": "2942b840514242b299738f8b9bbe2095",
+                  "LocaleId": 3076,
+                  "Name": "一般納稅人"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "一般纳税人"
+                },
+                {
+                  "Key": 3076,
+                  "Value": "一般納稅人"
+                }
+              ]
+            },
+            "PayCondition_Id": 0,
+            "PayCondition": null,
+            "SettleId_Id": 3150507,
+            "SettleId": {
+              "Id": 3150507,
+              "msterID": 3150502,
+              "Number": "010210010",
+              "MultiLanguageText": [
+                {
+                  "PkId": 222029,
+                  "LocaleId": 2052,
+                  "Name": "周口市淮阳区觅新塑料产品销售店（个体工商户）"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "周口市淮阳区觅新塑料产品销售店（个体工商户）"
+                }
+              ]
+            },
+            "ChargeId_Id": 3150507,
+            "ChargeId": {
+              "Id": 3150507,
+              "msterID": 3150502,
+              "Number": "010210010",
+              "MultiLanguageText": [
+                {
+                  "PkId": 222029,
+                  "LocaleId": 2052,
+                  "Name": "周口市淮阳区觅新塑料产品销售店（个体工商户）"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "周口市淮阳区觅新塑料产品销售店（个体工商户）"
+                }
+              ]
+            }
+          }
+        ],
+        "SupplierLocation": [],
+        "SupplierContact": []
+      },
+      "ChargeId_Id": 3150507,
+      "ChargeId": {
+        "Id": 3150507,
+        "msterID": 3150502,
+        "MultiLanguageText": [
+          {
+            "PkId": 222029,
+            "LocaleId": 2052,
+            "Name": "周口市淮阳区觅新塑料产品销售店（个体工商户）"
+          }
+        ],
+        "Name": [
+          {
+            "Key": 2052,
+            "Value": "周口市淮阳区觅新塑料产品销售店（个体工商户）"
+          }
+        ],
+        "Number": "010210010",
+        "CorrespondOrgId_Id": 0,
+        "CorrespondOrgId": null,
+        "SupplierBase": [
+          {
+            "Id": 222029,
+            "Address": " ",
+            "SupplyClassify": "CG"
+          }
+        ],
+        "SupplierBusiness": [
+          {
+            "Id": 222029,
+            "PriceListID_Id": 0,
+            "PriceListID": null,
+            "DiscountListId_Id": 0,
+            "DiscountListId": null,
+            "ProviderId_Id": 3150507,
+            "ProviderId": {
+              "Id": 3150507,
+              "msterID": 3150502,
+              "Number": "010210010",
+              "MultiLanguageText": [
+                {
+                  "PkId": 222029,
+                  "LocaleId": 2052,
+                  "Name": "周口市淮阳区觅新塑料产品销售店（个体工商户）"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "周口市淮阳区觅新塑料产品销售店（个体工商户）"
+                }
+              ]
+            },
+            "VmiStockId_Id": 0,
+            "VmiStockId": null,
+            "VmiBusiness": false
+          }
+        ],
+        "SupplierFinance": [
+          {
+            "Id": 222029,
+            "FTaxType_Id": "9e855eb97bec43e7b50c3e0e0bf51210",
+            "FTaxType": {
+              "Id": "9e855eb97bec43e7b50c3e0e0bf51210",
+              "Number": "SFL02_SYS",
+              "MultiLanguageText": [
+                {
+                  "PkId": "7841e26e9e5a4fe6a83e7cdbe0c24175",
+                  "LocaleId": 2052,
+                  "Name": "一般纳税人"
+                },
+                {
+                  "PkId": "2942b840514242b299738f8b9bbe2095",
+                  "LocaleId": 3076,
+                  "Name": "一般納稅人"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "一般纳税人"
+                },
+                {
+                  "Key": 3076,
+                  "Value": "一般納稅人"
+                }
+              ]
+            },
+            "PayCondition_Id": 0,
+            "PayCondition": null,
+            "SettleId_Id": 3150507,
+            "SettleId": {
+              "Id": 3150507,
+              "msterID": 3150502,
+              "Number": "010210010",
+              "MultiLanguageText": [
+                {
+                  "PkId": 222029,
+                  "LocaleId": 2052,
+                  "Name": "周口市淮阳区觅新塑料产品销售店（个体工商户）"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "周口市淮阳区觅新塑料产品销售店（个体工商户）"
+                }
+              ]
+            },
+            "ChargeId_Id": 3150507,
+            "ChargeId": {
+              "Id": 3150507,
+              "msterID": 3150502,
+              "Number": "010210010",
+              "MultiLanguageText": [
+                {
+                  "PkId": 222029,
+                  "LocaleId": 2052,
+                  "Name": "周口市淮阳区觅新塑料产品销售店（个体工商户）"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "周口市淮阳区觅新塑料产品销售店（个体工商户）"
+                }
+              ]
+            }
+          }
+        ],
+        "SupplierLocation": [],
+        "SupplierContact": []
+      },
+      "BusinessType": "CG",
+      "SupplyAddress": " ",
+      "APSTATUS": "Y",
+      "TransferBizType_Id": 1,
+      "TransferBizType": {
+        "Id": 1,
+        "MultiLanguageText": [
+          {
+            "PkId": 100002,
+            "LocaleId": 2052,
+            "Name": "跨组织采购"
+          }
+        ],
+        "Name": [
+          {
+            "Key": 2052,
+            "Value": "跨组织采购"
+          }
+        ],
+        "Number": "OverOrgPur"
+      },
+      "CorrespondOrgId_Id": 0,
+      "CorrespondOrgId": null,
+      "IsInterLegalPerson": false,
+      "ScanBox": null,
+      "FCDateOffsetUnit": null,
+      "CDateOffsetValue": 0,
+      "DisassemblyFlag": false,
+      "ConfirmerId_Id": 0,
+      "ConfirmerId": null,
+      "ConfirmDate": null,
+      "ConfirmStatus": "A",
+      "ProviderContactID_Id": 0,
+      "ProviderContactID": null,
+      "SplitBillType": "A",
+      "FSupplyEMail": " ",
+      "SalOutStockOrgId_Id": 0,
+      "SalOutStockOrgId": null,
+      "F_VIIH_Base_Id": 624640,
+      "F_VIIH_Base": {
+        "Id": 624640,
+        "msterID": 123015,
+        "MultiLanguageText": [
+          {
+            "PkId": 100226,
+            "LocaleId": 2052,
+            "Name": "辅料入库"
+          }
+        ],
+        "Name": [
+          {
+            "Key": 2052,
+            "Value": "辅料入库"
+          }
+        ],
+        "Number": "002"
+      },
+      "F_PVUE_Text": "翟淑超",
+      "F_PVUE_Text1": " ",
+      "F_VIIH_PrintTimes": 1,
+      "F_VIIH_Text": " ",
+      "InStockFin": [
+        {
+          "Id": 174960,
+          "PayOrgId_Id": 100068,
+          "PayOrgId": {
+            "Id": 100068,
+            "MultiLanguageText": [
+              {
+                "PkId": 100005,
+                "LocaleId": 2052,
+                "Name": "山东源河食用菌种植有限公司"
+              }
+            ],
+            "Name": [
+              {
+                "Key": 2052,
+                "Value": "山东源河食用菌种植有限公司"
+              }
+            ],
+            "Number": "10003"
+          },
+          "SettleOrgId_Id": 100068,
+          "SettleOrgId": {
+            "Id": 100068,
+            "MultiLanguageText": [
+              {
+                "PkId": 100005,
+                "LocaleId": 2052,
+                "Name": "山东源河食用菌种植有限公司"
+              }
+            ],
+            "Name": [
+              {
+                "Key": 2052,
+                "Value": "山东源河食用菌种植有限公司"
+              }
+            ],
+            "Number": "10003"
+          },
+          "SettleCurrId_Id": 1,
+          "SettleCurrId": {
+            "Id": 1,
+            "msterID": 1,
+            "MultiLanguageText": [
+              {
+                "PkId": 2,
+                "LocaleId": 2052,
+                "Name": "人民币"
+              }
+            ],
+            "Name": [
+              {
+                "Key": 2052,
+                "Value": "人民币"
+              }
+            ],
+            "Number": "PRE001",
+            "Sysmbol": "¥",
+            "PriceDigits": 8,
+            "AmountDigits": 2,
+            "IsShowCSymbol": true,
+            "FormatOrder": "1",
+            "RoundType": "1"
+          },
+          "BillCost": 0,
+          "BillTaxAmount": 0,
+          "BillCostAmount": 0,
+          "BillAllAmount": 50022.22,
+          "FSettleTypeId_Id": 0,
+          "FSettleTypeId": null,
+          "ExchangeTypeId_Id": 1,
+          "ExchangeTypeId": {
+            "Id": 1,
+            "msterID": 1,
+            "MultiLanguageText": [
+              {
+                "PkId": 1,
+                "LocaleId": 2052,
+                "Name": "固定汇率"
+              }
+            ],
+            "Name": [
+              {
+                "Key": 2052,
+                "Value": "固定汇率"
+              }
+            ],
+            "Number": "HLTX01_SYS",
+            "Digits": 5,
+            "ReverseDigits": 5
+          },
+          "PayConditionId_Id": 0,
+          "PayConditionId": null,
+          "ExchangeRate": 1,
+          "LocalCurrId_Id": 1,
+          "LocalCurrId": {
+            "Id": 1,
+            "msterID": 1,
+            "MultiLanguageText": [
+              {
+                "PkId": 2,
+                "LocaleId": 2052,
+                "Name": "人民币"
+              }
+            ],
+            "Name": [
+              {
+                "Key": 2052,
+                "Value": "人民币"
+              }
+            ],
+            "Number": "PRE001",
+            "Sysmbol": "¥",
+            "PriceDigits": 8,
+            "AmountDigits": 2,
+            "IsShowCSymbol": true,
+            "FormatOrder": "1",
+            "RoundType": "1"
+          },
+          "BillTaxAmount_LC": 0,
+          "BillCostAmount_LC": 0,
+          "BillAllAmount_LC": 50022.22,
+          "DiscountListId_Id": 0,
+          "DiscountListId": null,
+          "PriceTimePoint": "1",
+          "PriceListId_Id": 0,
+          "PriceListId": null,
+          "BillAmount_LC": 50022.22,
+          "BillAmount": 50022.22,
+          "IsIncludedTax": true,
+          "OwnerCustomerID_Id": 0,
+          "OwnerCustomerID": null,
+          "SettleSupplierID_Id": 0,
+          "SettleSupplierID": null,
+          "ISGENFORIOS": false,
+          "ISPRICEEXCLUDETAX": true,
+          "ISINVOICEARLIER": false,
+          "THIRDSRCTYPE": " ",
+          "THIRDBILLID": " ",
+          "FTHIRDBILLNO": " ",
+          "AllDisCount": 0,
+          "HSExchangeRate": 1
+        }
+      ],
+      "InStockEntry": [
+        {
+          "Id": 301111,
+          "Seq": 1,
+          "SrcEntityDisa": " ",
+          "MaterialId_Id": 315084,
+          "MaterialId": {
+            "Id": 315084,
+            "msterID": 111214,
+            "MultiLanguageText": [
+              {
+                "PkId": 145119,
+                "LocaleId": 2052,
+                "Name": "盘状生产袋",
+                "Specification": "15.2*6S"
+              }
+            ],
+            "Name": [
+              {
+                "Key": 2052,
+                "Value": "盘状生产袋"
+              }
+            ],
+            "Number": "0201010200002",
+            "UseOrgId_Id": 100068,
+            "UseOrgId": {
+              "Id": 100068,
+              "Number": "10003",
+              "MultiLanguageText": [
+                {
+                  "PkId": 100005,
+                  "LocaleId": 2052,
+                  "Name": "山东源河食用菌种植有限公司"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "山东源河食用菌种植有限公司"
+                }
+              ]
+            },
+            "Specification": [
+              {
+                "Key": 2052,
+                "Value": "15.2*6S"
+              }
+            ],
+            "MaterialGroup_Id": 102732,
+            "MaterialGroup": {
+              "Id": 102732,
+              "Number": "02010102",
+              "MultiLanguageText": [
+                {
+                  "PkId": 100051,
+                  "LocaleId": 2052,
+                  "Name": "盘状生产袋"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "盘状生产袋"
+                }
+              ]
+            },
+            "MaterialCMK": [
+              {
+                "Id": 145120,
+                "FGoodBarCode_CMK": " "
+              }
+            ],
+            "MaterialBase": [
+              {
+                "Id": 145119,
+                "ErpClsID": "1",
+                "IsInventory": true,
+                "BaseUnitId_Id": 10095,
+                "BaseUnitId": {
+                  "Id": 10095,
+                  "msterID": 10095,
+                  "Number": "kg",
+                  "MultiLanguageText": [
+                    {
+                      "PkId": 10126,
+                      "LocaleId": 2052,
+                      "Name": "千克"
+                    }
+                  ],
+                  "Name": [
+                    {
+                      "Key": 2052,
+                      "Value": "千克"
+                    }
+                  ]
+                },
+                "TaxType_Id": "63489f1e86944c989c58d97893a2aec2",
+                "TaxType": {
+                  "Id": "63489f1e86944c989c58d97893a2aec2",
+                  "Number": "WLDSFL01_SYS",
+                  "MultiLanguageText": [
+                    {
+                      "PkId": "1ac1f2dd4a584f838c73c939d1496e43",
+                      "LocaleId": 2052,
+                      "Name": "标准税率"
+                    }
+                  ],
+                  "Name": [
+                    {
+                      "Key": 2052,
+                      "Value": "标准税率"
+                    }
+                  ]
+                },
+                "CategoryID_Id": 238,
+                "CategoryID": {
+                  "Id": 238,
+                  "msterID": 238,
+                  "Number": "CHLB02_SYS",
+                  "MultiLanguageText": [
+                    {
+                      "PkId": 244,
+                      "LocaleId": 2052,
+                      "Name": "辅料"
+                    }
+                  ],
+                  "Name": [
+                    {
+                      "Key": 2052,
+                      "Value": "辅料"
+                    }
+                  ]
+                },
+                "Suite": "0"
+              }
+            ],
+            "MaterialStock": [
+              {
+                "Id": 145119,
+                "StoreUnitID_Id": 10095,
+                "StoreUnitID": {
+                  "Id": 10095,
+                  "msterID": 10095,
+                  "Number": "kg",
+                  "MultiLanguageText": [
+                    {
+                      "PkId": 10126,
+                      "LocaleId": 2052,
+                      "Name": "千克"
+                    }
+                  ],
+                  "Name": [
+                    {
+                      "Key": 2052,
+                      "Value": "千克"
+                    }
+                  ]
+                },
+                "AuxUnitID_Id": 0,
+                "AuxUnitID": null,
+                "StockId_Id": 0,
+                "StockId": null,
+                "ExpUnit": " ",
+                "StockPlaceId_Id": 0,
+                "StockPlaceId": null,
+                "OnlineLife": 0,
+                "ExpPeriod": 0,
+                "IsBatchManage": false,
+                "IsKFPeriod": false,
+                "IsExpParToFlot": false,
+                "IsSNManage": false,
+                "SNCodeRule_Id": 0,
+                "SNCodeRule": null,
+                "SNUnit_Id": 0,
+                "SNUnit": null,
+                "UnitConvertDir": "1",
+                "SNGenerateTime": "1",
+                "SNManageType": "1"
+              }
+            ],
+            "MaterialPurchase": [
+              {
+                "Id": 145119,
+                "PurchaseUnitID_Id": 10095,
+                "PurchaseUnitID": {
+                  "Id": 10095,
+                  "msterID": 10095,
+                  "Number": "kg",
+                  "MultiLanguageText": [
+                    {
+                      "PkId": 10126,
+                      "LocaleId": 2052,
+                      "Name": "千克"
+                    }
+                  ],
+                  "Name": [
+                    {
+                      "Key": 2052,
+                      "Value": "千克"
+                    }
+                  ]
+                },
+                "PurchasePriceUnitId_Id": 10095,
+                "PurchasePriceUnitId": {
+                  "Id": 10095,
+                  "msterID": 10095,
+                  "Number": "kg",
+                  "MultiLanguageText": [
+                    {
+                      "PkId": 10126,
+                      "LocaleId": 2052,
+                      "Name": "千克"
+                    }
+                  ],
+                  "Name": [
+                    {
+                      "Key": 2052,
+                      "Value": "千克"
+                    }
+                  ]
+                },
+                "IsReturnMaterial": true
+              }
+            ],
+            "MaterialPlan": [
+              {
+                "Id": 145119,
+                "PlanMode": "0"
+              }
+            ],
+            "MaterialAuxPty": [
+              {
+                "Id": 143316,
+                "IsEnable1": false,
+                "IsComControl": false,
+                "AuxPropertyId_Id": 100001,
+                "AuxPropertyId": {
+                  "Id": 100001,
+                  "msterID": 0,
+                  "Number": "wldj",
+                  "MultiLanguageText": [
+                    {
+                      "PkId": 100001,
+                      "LocaleId": 2052,
+                      "Name": "物料等级"
+                    }
+                  ],
+                  "Name": [
+                    {
+                      "Key": 2052,
+                      "Value": "物料等级"
+                    }
+                  ]
+                }
+              }
+            ],
+            "MaterialInvPty": [
+              {
+                "Id": 325575,
+                "IsEnable": true,
+                "InvPtyId_Id": 10001,
+                "InvPtyId": {
+                  "Id": 10001,
+                  "msterID": 10001,
+                  "Number": "01",
+                  "MultiLanguageText": [
+                    {
+                      "PkId": 10008,
+                      "LocaleId": 2052,
+                      "Name": "仓库"
+                    }
+                  ],
+                  "Name": [
+                    {
+                      "Key": 2052,
+                      "Value": "仓库"
+                    }
+                  ]
+                }
+              },
+              {
+                "Id": 325576,
+                "IsEnable": true,
+                "InvPtyId_Id": 10002,
+                "InvPtyId": {
+                  "Id": 10002,
+                  "msterID": 10002,
+                  "Number": "02",
+                  "MultiLanguageText": [
+                    {
+                      "PkId": 10013,
+                      "LocaleId": 2052,
+                      "Name": "仓位"
+                    }
+                  ],
+                  "Name": [
+                    {
+                      "Key": 2052,
+                      "Value": "仓位"
+                    }
+                  ]
+                }
+              },
+              {
+                "Id": 325577,
+                "IsEnable": false,
+                "InvPtyId_Id": 10003,
+                "InvPtyId": {
+                  "Id": 10003,
+                  "msterID": 10003,
+                  "Number": "03",
+                  "MultiLanguageText": [
+                    {
+                      "PkId": 10016,
+                      "LocaleId": 2052,
+                      "Name": "BOM版本"
+                    }
+                  ],
+                  "Name": [
+                    {
+                      "Key": 2052,
+                      "Value": "BOM版本"
+                    }
+                  ]
+                }
+              },
+              {
+                "Id": 325578,
+                "IsEnable": false,
+                "InvPtyId_Id": 10004,
+                "InvPtyId": {
+                  "Id": 10004,
+                  "msterID": 10004,
+                  "Number": "04",
+                  "MultiLanguageText": [
+                    {
+                      "PkId": 10019,
+                      "LocaleId": 2052,
+                      "Name": "批号"
+                    }
+                  ],
+                  "Name": [
+                    {
+                      "Key": 2052,
+                      "Value": "批号"
+                    }
+                  ]
+                }
+              },
+              {
+                "Id": 325579,
+                "IsEnable": false,
+                "InvPtyId_Id": 10006,
+                "InvPtyId": {
+                  "Id": 10006,
+                  "msterID": 10006,
+                  "Number": "06",
+                  "MultiLanguageText": [
+                    {
+                      "PkId": 10025,
+                      "LocaleId": 2052,
+                      "Name": "计划跟踪号"
+                    }
+                  ],
+                  "Name": [
+                    {
+                      "Key": 2052,
+                      "Value": "计划跟踪号"
+                    }
+                  ]
+                }
+              }
+            ],
+            "MaterialQM": [
+              {
+                "Id": 145119,
+                "CheckIncoming": false
+              }
+            ]
+          },
+          "StockId_Id": 111526,
+          "StockId": {
+            "Id": 111526,
+            "msterID": 111526,
+            "MultiLanguageText": [
+              {
+                "PkId": 100120,
+                "LocaleId": 2052,
+                "Name": "源河辅料库"
+              }
+            ],
+            "Name": [
+              {
+                "Key": 2052,
+                "Value": "源河辅料库"
+              }
+            ],
+            "Number": "100030102",
+            "IsOpenLocation": false,
+            "StockStatusType": "0,1,2,3,4,5,6,7,8",
+            "DefStockStatusId_Id": 10000,
+            "DefStockStatusId": {
+              "Id": 10000,
+              "msterID": 10000,
+              "Number": "KCZT01_SYS",
+              "MultiLanguageText": [
+                {
+                  "PkId": 1,
+                  "LocaleId": 2052,
+                  "Name": "可用"
+                }
+              ],
+              "Name": [
+                {
+                  "Key": 2052,
+                  "Value": "可用"
+                }
+              ]
+            },
+            "LocListFormatter": "3",
+            "StockFlexItem": []
+          },
+          "ProduceDate": null,
+          "Note": " ",
+          "SupplierLot": " ",
+          "GrossWeight": 0,
+          "NetWeight": 0,
+          "ContractNO": " ",
+          "DemandNo": " ",
+          "MustQty": 13000,
+          "RealQty": 5156.93,
+          "AuxUnitQty": 0,
+          "SRCRowId": 0,
+          "EXPIRYDATE": null,
+          "IsFree": false,
+          "StockStatusId_Id": 10000,
+          "StockStatusId": {
+            "Id": 10000,
+            "msterID": 10000,
+            "MultiLanguageText": [
+              {
+                "PkId": 1,
+                "LocaleId": 2052,
+                "Name": "可用"
+              }
+            ],
+            "Name": [
+              {
+                "Key": 2052,
+                "Value": "可用"
+              }
+            ],
+            "Number": "KCZT01_SYS",
+            "Type": "0"
+          },
+          "BOMId_Id": 0,
+          "BOMId": null,
+          "TaxPrice": 9.7,
+          "CostPrice": 0,
+          "TaxRate": 0,
+          "TaxAmount": 0,
+          "DiscountRate": 0,
+          "PriceCoefficient": 1,
+          "PriceUnitQty": 5156.93,
+          "FTaxNetPrice": 9.7,
+          "FCostAmount": 0,
+          "AllAmount": 50022.22,
+          "TaxAmount_LC": 0,
+          "CostAmount_LC": 0,
+          "AllAmount_LC": 50022.22,
+          "StockFlag": true,
+          "BaseUnitPrice": 0,
+          "UnitID_Id": 10095,
+          "UnitID": {
+            "Id": 10095,
+            "msterID": 10095,
+            "MultiLanguageText": [
+              {
+                "PkId": 10126,
+                "LocaleId": 2052,
+                "Name": "千克"
+              }
+            ],
+            "Name": [
+              {
+                "Key": 2052,
+                "Value": "千克"
+              }
+            ],
+            "Number": "kg",
+            "Precision": 3,
+            "RoundType": "1",
+            "UNITCONVERTRATE": [
+              {
+                "Id": 10114,
+                "ConvertType": "0"
+              }
+            ]
+          },
+          "BaseUnitID_Id": 10095,
+          "BaseUnitID": {
+            "Id": 10095,
+            "msterID": 10095,
+            "MultiLanguageText": [
+              {
+                "PkId": 10126,
+                "LocaleId": 2052,
+                "Name": "千克"
+              }
+            ],
+            "Name": [
+              {
+                "Key": 2052,
+                "Value": "千克"
+              }
+            ],
+            "Number": "kg",
+            "Precision": 3,
+            "RoundType": "1",
+            "UNITCONVERTRATE": [
+              {
+                "Id": 10114,
+                "ConvertType": "0"
+              }
+            ]
+          },
+          "BaseUnitQty": 5156.93,
+          "AuxUnitID_Id": 0,
+          "AuxUnitID": null,
+          "PriceUnitID_Id": 10095,
+          "PriceUnitID": {
+            "Id": 10095,
+            "msterID": 10095,
+            "MultiLanguageText": [
+              {
+                "PkId": 10126,
+                "LocaleId": 2052,
+                "Name": "千克"
+              }
+            ],
+            "Name": [
+              {
+                "Key": 2052,
+                "Value": "千克"
+              }
+            ],
+            "Number": "kg",
+            "Precision": 3,
+            "RoundType": "1",
+            "UNITCONVERTRATE": [
+              {
+                "Id": 10114,
+                "ConvertType": "0"
+              }
+            ]
+          },
+          "BaseJoinQty": 0,
+          "AuxPropId_Id": 0,
+          "AuxPropId": null,
+          "POOrderNo": "CGDD-202607041479",
+          "ReceiveStockStatus_Id": 0,
+          "ReceiveStockStatus": null,
+          "StockLocId_Id": 0,
+          "StockLocId": null,
+          "SRCBILLTYPEID": "PUR_PurchaseOrder",
+          "SRCBillNo": "CGDD-202607041479",
+          "KeeperTypeID": "BD_KeeperOrg",
+          "KeeperID_Id": 100068,
+          "KeeperID": {
+            "Id": 100068,
+            "msterID": 100068,
+            "MultiLanguageText": [
+              {
+                "PkId": 100005,
+                "LocaleId": 2052,
+                "Name": "山东源河食用菌种植有限公司"
+              }
+            ],
+            "Name": [
+              {
+                "Key": 2052,
+                "Value": "山东源河食用菌种植有限公司"
+              }
+            ],
+            "Number": "10003"
+          },
+          "InvoicedQty": 0,
+          "BaseAPJoinQty": 5156.93,
+          "ReceiveStockFlag": false,
+          "ProcessFee": 0,
+          "MaterialCosts": 0,
+          "OWNERTYPEID": "BD_OwnerOrg",
+          "OWNERID_Id": 100068,
+          "OWNERID": {
+            "Id": 100068,
+            "msterID": 100068,
+            "MultiLanguageText": [
+              {
+                "PkId": 100005,
+                "LocaleId": 2052,
+                "Name": "山东源河食用菌种植有限公司"
+              }
+            ],
+            "Name": [
+              {
+                "Key": 2052,
+                "Value": "山东源河食用菌种植有限公司"
+              }
+            ],
+            "Number": "10003"
+          },
+          "JOINEDQTY": 0,
+          "UNJOINQTY": 0,
+          "JOINEDAMOUNT": 0,
+          "UNJOINAMOUNT": 0,
+          "FULLYJOINED": false,
+          "JOINSTATUS": "N",
+          "Lot_Id": 0,
+          "Lot": null,
+          "Lot_Text": " ",
+          "ReceiveOwnerTypeId": " ",
+          "ReceiveOwnerId_Id": 0,
+          "ReceiveOwnerId": null,
+          "TaxCombination_Id": 0,
+          "TaxCombination": null,
+          "Price": 9.7,
+          "SysPrice": 0,
+          "UpPrice": 0,
+          "DownPrice": 0,
+          "Amount": 50022.22,
+          "Amount_LC": 50022.22,
+          "Discount": 0,
+          "Discount_Detail": [],
+          "BaseReturnJoinQty": 0,
+          "ReturnJoinQty": 0,
+          "BFLowId_Id": " ",
+          "BFLowId": null,
+          "ReceiveLot_Id": 0,
+          "ReceiveLot": null,
+          "ReceiveLot_Text": " ",
+          "ReceiveStockId_Id": 0,
+          "ReceiveStockId": null,
+          "ReceiveStockLocId_Id": 0,
+          "ReceiveStockLocId": null,
+          "ReceiveAuxPropId_Id": 0,
+          "ReceiveAuxPropId": null,
+          "MtoNo": " ",
+          "ProjectNo": " ",
+          "GiveAway": false,
+          "SNUnitID_Id": 0,
+          "SNUnitID": null,
+          "SNQty": 0,
+          "SECRETURNJOINQTY": 0,
+          "FSampleDamageQty": 0,
+          "FSampleDamageBaseQty": 0,
+          "CheckInComing": false,
+          "IsReceiveUpdateStock": false,
+          "InvoicedStatus": "A",
+          "InvoicedJoinQty": 0,
+          "ExtAuxUnitId_Id": 0,
+          "ExtAuxUnitId": null,
+          "ExtAuxUnitQty": 0,
+          "ReceiveMtoNo": " ",
+          "WWInType": " ",
+          "PriceBaseQty": 5156.93,
+          "SetPriceUnitID_Id": 0,
+          "SetPriceUnitID": null,
+          "RemainInStockUnitId_Id": 10095,
+          "RemainInStockUnitId": {
+            "Id": 10095,
+            "msterID": 10095,
+            "MultiLanguageText": [
+              {
+                "PkId": 10126,
+                "LocaleId": 2052,
+                "Name": "千克"
+              }
+            ],
+            "Name": [
+              {
+                "Key": 2052,
+                "Value": "千克"
+              }
+            ],
+            "Number": "kg",
+            "Precision": 3,
+            "RoundType": "1",
+            "UNITCONVERTRATE": [
+              {
+                "Id": 10114,
+                "ConvertType": "0"
+              }
+            ]
+          },
+          "RemainInStockQty": 5156.93,
+          "RemainInStockBaseQty": 5156.93,
+          "BILLINGCLOSE": false,
+          "PurBaseNum": 13000,
+          "FStockBaseDen": 13000,
+          "SrcBizUnitID_Id": 10095,
+          "SrcBizUnitID": {
+            "Id": 10095,
+            "msterID": 10095,
+            "MultiLanguageText": [
+              {
+                "PkId": 10126,
+                "LocaleId": 2052,
+                "Name": "千克"
+              }
+            ],
+            "Name": [
+              {
+                "Key": 2052,
+                "Value": "千克"
+              }
+            ],
+            "Number": "kg",
+            "Precision": 3,
+            "RoundType": "1",
+            "UNITCONVERTRATE": [
+              {
+                "Id": 10114,
+                "ConvertType": "0"
+              }
+            ]
+          },
+          "RETURNSTOCKJNBASEQTY": 0,
+          "StockBaseAPJoinQty": 5156.93,
+          "COSTPRICE_LC": 0,
+          "POORDERENTRYID": 291983,
+          "PriceListEntry_Id": 0,
+          "PriceListEntry": null,
+          "APNotJoinQty": 0,
+          "APJoinAmount": 50022.22,
+          "PayableCloseStatus": "B",
+          "PayableCloseDate": "2026-07-11T00:00:00",
+          "DisPriceQty": 0,
+          "BeforeDisPriceQty": 0,
+          "RECSUBENTRYID": 0,
+          "RowType": "Standard",
+          "ParentMatId_Id": 0,
+          "ParentMatId": null,
+          "RowId": " ",
+          "ParentRowId": " ",
+          "THIRDENTRYID": " ",
+          "ProcessFee_LC": 0,
+          "MaterialCosts_LC": 0,
+          "PriceDiscount": 0,
+          "PriLstEntryId": 0,
+          "FCMKBarCode": " ",
+          "FAllotBaseQty": 0,
+          "FIsScanEntry": false,
+          "ConsumeSumQty": 0,
+          "BaseConsumeSumQty": 0,
+          "RejectsDiscountAmount": 0,
+          "TailDiffFlag": false,
+          "AllAmountExceptDisCount": 50022.22,
+          "MultiLanguageText": [
+            {
+              "PkId": 300917,
+              "LocaleId": 2052,
+              "MaterialDesc": "盘状生产袋"
+            }
+          ],
+          "MaterialDesc": [
+            {
+              "Key": 2052,
+              "Value": "盘状生产袋"
+            }
+          ],
+          "SalOutStockBillNo": " ",
+          "SalOutStockEntryId": 0,
+          "IsReconciliationing": false,
+          "ReconciliationBillNo": " ",
+          "AllReconciliationBillNo": " ",
+          "PayableEntryID": 0,
+          "WWPickMtlQty": 0,
+          "SUBREQBILLNO": " ",
+          "SUBREQBILLSEQ": 0,
+          "SUBREQENTRYID": 0,
+          "F_PVUE_Assistant_Id": " ",
+          "F_PVUE_Assistant": null,
+          "F_PVUE_cpwldj": " ",
+          "F_VIIH_dengji_Id": " ",
+          "F_VIIH_dengji": null,
+          "InStockPurCost": [],
+          "STK_INSTOCKENTRY_TAX": [
+            {
+              "Id": 300885,
+              "Seq": 1,
+              "TaxRateId_Id": 0,
+              "TaxRateId": null,
+              "TaxRate": 0,
+              "TaxAmount": 0,
+              "CostPercent": 0,
+              "CostAmount": 0,
+              "VAT": false,
+              "SellerWithholding": false,
+              "BuyerWithholding": false
+            }
+          ],
+          "STK_InstockSerial": [],
+          "FInStockEntry_Link": [
+            {
+              "Id": 300681,
+              "FlowId": " ",
+              "FlowLineId": 0,
+              "RuleId": "PUR_PurchaseOrder-STK_InStock",
+              "STableId": 0,
+              "STableName": "t_PUR_POOrderEntry",
+              "SBillId": "164762",
+              "SId": "291983",
+              "RemainInStockBaseQtyOld": 13000,
+              "RemainInStockBaseQty": 5156.93,
+              "BaseUnitQtyOld": 13000,
+              "BaseUnitQty": 5156.93,
+              "FLnk1TrackerId": " ",
+              "FLnk1SState": " ",
+              "FLnk1Amount": 0,
+              "FLnkTrackerId": " ",
+              "FLnkSState": " ",
+              "FLnkAmount": 0,
+              "FLnk2TrackerId": " ",
+              "FLnk2SState": " ",
+              "FLnk2Amount": 0
+            }
+          ]
+        }
+      ],
+      "BOS_ConvertTakeDataInfo": null
+    }
+  }
+}

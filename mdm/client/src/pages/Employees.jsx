@@ -2,7 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Paper, Chip, CircularProgress, Alert, TextField, MenuItem, Grid,
+  InputAdornment, IconButton,
 } from '@mui/material';
+import ClearIcon from '@mui/icons-material/Clear';
 import api from '../api';
 
 export default function Employees() {
@@ -40,7 +42,8 @@ export default function Employees() {
 
   return (
     <Box>
-      <Typography variant="h5" fontWeight="bold" mb={3}>员工主数据</Typography>
+      <Typography variant="h5" fontWeight="bold" mb={2}>员工主数据</Typography>
+      <Typography variant="body2" color="text.secondary" mb={1}>共 {employees.length} 名员工</Typography>
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
       <Grid container spacing={2} mb={2}>
@@ -48,6 +51,15 @@ export default function Employees() {
           <TextField
             fullWidth size="small" placeholder="搜索姓名/工号/邮箱/电话"
             value={search} onChange={(e) => { setSearch(e.target.value); setLoading(true); }}
+            InputProps={{
+              endAdornment: search ? (
+                <InputAdornment position="end">
+                  <IconButton size="small" onClick={() => { setSearch(''); setLoading(true); }}>
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ) : null,
+            }}
           />
         </Grid>
         <Grid item xs={12} md={4}>

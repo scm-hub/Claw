@@ -14,12 +14,23 @@ import {
   Home, QrCode, Person, ListAlt, LocalShipping, Print, Approval,
   History, BarChart, Search, CheckCircle, CloudUpload, Download,
 } from '@mui/icons-material';
+import axios from 'axios';
 import api from '../../api';
 
-const ROLE_GROUP_NAMES = {
-  admin: '管理员', warehouse: '仓储', sales: '销售',
-  purchase: '采购', finance: '财务', logistics: '物流', default: '通用',
-};
+// SCM 跨系统 API 调用（不走 Portal 的 /api baseURL，直接走网关 /scm 路由）
+const scmApi = axios.create({
+  baseURL: '',
+  timeout: 15000,
+});
+scmApi.interceptors.request.use((config) => {
+  const token = localStorage.getItem('sso_token');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+scmApi.interceptors.response.use(
+  (response) => response.data,
+  (error) => Promise.reject(error.response?.data || error)
+);
 
 const PRESET_ICONS = [
   'Dashboard', 'Home', 'Inventory', 'ShoppingCart', 'TrendingUp',
@@ -79,8 +90,9 @@ const COLOR_OPTIONS = [
 
 export default function MobileLayoutConfig() {
   const [configs, setConfigs] = useState([]);
+  const [roleList, setRoleList] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedGroup, setSelectedGroup] = useState('sales');
+  const [selectedGroup, setSelectedGroup] = useState('');
   const [saving, setSaving] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
@@ -93,10 +105,23 @@ export default function MobileLayoutConfig() {
     setSnackbar({ open: true, message, severity });
   };
 
+  // 加载 Portal 角色列表
+  const fetchRoles = useCallback(async () => {
+    try {
+      const resp = await api.get('/roles');
+      if (resp.success && resp.data?.length > 0) {
+        setRoleList(resp.data);
+        if (!selectedGroup) setSelectedGroup(resp.data[0].name);
+      }
+    } catch (err) {
+      showSnackbar('加载角色列表失败', 'error');
+    }
+  }, [selectedGroup]);
+
   // 加载所有配置
   const fetchConfigs = useCallback(async () => {
     try {
-      const resp = await api.get('/scm/api/mobile-layout/configs');
+      const resp = await scmApi.get('/scm/api/mobile-layout/configs');
       if (resp.success) setConfigs(resp.data);
     } catch (err) {
       showSnackbar('加载配置列表失败', 'error');
@@ -106,7 +131,7 @@ export default function MobileLayoutConfig() {
   // 加载指定角色组配置
   const fetchConfig = useCallback(async (roleGroup) => {
     try {
-      const resp = await api.get(`/scm/api/mobile-layout/config?roleGroup=${roleGroup}`);
+      const resp = await scmApi.get(`/scm/api/mobile-layout/config?roleGroup=${encodeURIComponent(roleGroup)}`);
       if (resp.success) {
         setNavItems(resp.data.navItems || []);
         setDashboardCards(resp.data.dashboardCards || []);
@@ -120,6 +145,11 @@ export default function MobileLayoutConfig() {
   }, []);
 
   useEffect(() => {
+    fetchRoles();
+  }, [fetchRoles]);
+
+  useEffect(() => {
+    if (!selectedGroup) return;
     fetchConfigs();
     fetchConfig(selectedGroup);
   }, [fetchConfigs, fetchConfig, selectedGroup]);
@@ -128,13 +158,13 @@ export default function MobileLayoutConfig() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const resp = await api.put(`/scm/api/mobile-layout/config/${selectedGroup}`, {
+      const resp = await scmApi.put(`/scm/api/mobile-layout/config/${encodeURIComponent(selectedGroup)}`, {
         navItems,
         dashboardCards,
         quickActions: quickActions.length > 0 ? quickActions : null,
       });
       if (resp.success) {
-        showSnackbar(`${ROLE_GROUP_NAMES[selectedGroup]} 配置已保存`);
+        showSnackbar(`${selectedGroup} 配置已保存`);
         fetchConfigs(); // 刷新列表
       }
     } catch (err) {
@@ -146,9 +176,9 @@ export default function MobileLayoutConfig() {
 
   // 恢复默认
   const handleReset = async () => {
-    if (!confirm(`确定恢复 ${ROLE_GROUP_NAMES[selectedGroup]} 的默认配置吗？`)) return;
+    if (!confirm(`确定恢复 ${selectedGroup} 的默认配置吗？`)) return;
     try {
-      const resp = await api.post(`/scm/api/mobile-layout/config/${selectedGroup}/reset`);
+      const resp = await scmApi.post(`/scm/api/mobile-layout/config/${encodeURIComponent(selectedGroup)}/reset`);
       if (resp.success) {
         setNavItems(resp.data.navItems);
         setDashboardCards(resp.data.dashboardCards);
@@ -274,12 +304,12 @@ export default function MobileLayoutConfig() {
                   label="选择角色组"
                   onChange={(e) => { setLoading(true); setSelectedGroup(e.target.value); }}
                 >
-                  {Object.entries(ROLE_GROUP_NAMES).map(([key, label]) => (
-                    <MenuItem key={key} value={key}>{label}</MenuItem>
+                  {roleList.map((role) => (
+                    <MenuItem key={role.id} value={role.name}>{role.name}</MenuItem>
                   ))}
                 </Select>
               </FormControl>
-              <Chip label={ROLE_GROUP_NAMES[selectedGroup]} color="primary" />
+              <Chip label={selectedGroup} color="primary" />
               <Typography variant="body2" color="text.secondary">
                 配置后将应用于所有归属该角色组的用户
               </Typography>
@@ -452,7 +482,7 @@ export default function MobileLayoutConfig() {
               <Typography variant="h6">实时预览</Typography>
             </Stack>
             <Typography variant="caption" color="text.secondary" mb={2} display="block">
-              {ROLE_GROUP_NAMES[selectedGroup]} 视角
+              {selectedGroup} 视角
             </Typography>
 
             {/* 手机模拟器 */}
@@ -473,7 +503,7 @@ export default function MobileLayoutConfig() {
               {/* 模拟顶栏 */}
               <Box sx={{ bgcolor: 'primary.main', color: 'white', px: 2, py: 1 }}>
                 <Typography variant="subtitle2">鲜当家SCM</Typography>
-                <Typography variant="caption">{ROLE_GROUP_NAMES[selectedGroup]}视图</Typography>
+                <Typography variant="caption">{selectedGroup}视图</Typography>
               </Box>
 
               {/* 模拟仪表盘卡片 */}

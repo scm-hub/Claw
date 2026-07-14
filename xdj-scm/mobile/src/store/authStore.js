@@ -4,6 +4,21 @@ const TOKEN_KEY = 'xdj_m_token';
 const USER_KEY = 'xdj_m_user';
 const CONFIG_KEY = 'xdj_m_layout_config';
 
+function getApiBaseUrl() {
+  try {
+    if (typeof Capacitor !== 'undefined') {
+      const { Capacitor: Cap } = require('@capacitor/core');
+      if (Cap.isNativePlatform()) {
+        return 'http://111.17.201.197:5174/scm/api';
+      }
+    }
+  } catch {}
+  const base = (typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL)
+    ? import.meta.env.BASE_URL.replace(/\/$/, '')
+    : '';
+  return base + '/api';
+}
+
 export const useAuthStore = create((set, get) => ({
   token: localStorage.getItem(TOKEN_KEY) || null,
   user: JSON.parse(localStorage.getItem(USER_KEY) || 'null'),
@@ -41,8 +56,9 @@ export const useAuthStore = create((set, get) => ({
     try {
       const { getRoleGroupName } = await import('../config/navConfig.js');
       const roleGroup = getRoleGroupName(role);
+      const apiBase = getApiBaseUrl();
       const res = await fetch(
-        `/api/mobile-layout/config?roleGroup=${roleGroup}`,
+        `${apiBase}/mobile-layout/config?roleGroup=${encodeURIComponent(roleGroup)}`,
         { headers: { Authorization: `Bearer ${get().token}` } }
       );
       const data = await res.json();

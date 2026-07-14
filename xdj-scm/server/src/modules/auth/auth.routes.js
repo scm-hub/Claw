@@ -5,6 +5,49 @@ import { authorize, ROLES } from '../../middleware/rbac.js';
 import * as authService from './auth.service.js';
 import jwt from 'jsonwebtoken';
 import prisma from '../../shared/prisma.js';
+import { getUserScmPermissions } from '../../shared/portalDb.js';
+
+/**
+ * 判断用户拥有的权限中是否包含指定模块（支持父模块匹配子功能点）
+ */
+function hasModuleInPerms(perms, moduleCode) {
+  if (perms.includes('*')) return true;
+  if (perms.includes(moduleCode)) return true;
+  return perms.some((p) => p.startsWith(moduleCode + '-'));
+}
+
+/**
+ * 根据用户拥有的 SCM 模块权限，自动推导 SCM 内部角色
+ * 与 Portal auth.service.js 中的 deriveScmRole 保持逻辑一致
+ */
+function deriveScmRole(scmModules) {
+  if (!scmModules || scmModules.length === 0) return 'WAREHOUSE_STAFF';
+
+  const allScmModules = [
+    'master', 'purchase', 'sales', 'warehouse', 'traceability',
+    'finance', 'cost', 'logistics', 'other', 'settings',
+  ];
+  if (scmModules.includes('*') || allScmModules.every((m) => hasModuleInPerms(scmModules, m))) {
+    return 'SUPER_ADMIN';
+  }
+
+  const roleMap = [
+    { modules: ['finance', 'cost'], role: 'FINANCE_MANAGER' },
+    { modules: ['purchase'], role: 'PURCHASE_MANAGER' },
+    { modules: ['sales'], role: 'SALES_MANAGER' },
+    { modules: ['warehouse', 'traceability'], role: 'WAREHOUSE_MANAGER' },
+    { modules: ['contract'], role: 'CONTRACT_MANAGER' },
+    { modules: ['logistics'], role: 'LOGISTICS_STAFF' },
+  ];
+
+  for (const entry of roleMap) {
+    if (entry.modules.some((m) => hasModuleInPerms(scmModules, m))) {
+      return entry.role;
+    }
+  }
+
+  return 'WAREHOUSE_STAFF';
+}
 
 const router = Router();
 
@@ -197,31 +240,159 @@ router.post('/login', async (req, res) => {
   });
 });
 
-// 移动端专用登录 — 支持 App 直接用户名/密码登录（不经过 Portal SSO）
+// 移动端专用登录 — 统一使用 HRMS 身份源验证，与电脑端 Portal SSO 共用同一套账号密码
 router.post('/mobile-login', async (req, res, next) => {
   try {
     const { username, password } = req.body;
-    if (!username || !password) {
-      return res.status(400).json({ success: false, message: '请输入用户名和密码' });
+    const identifier = username; // 兼容旧参数名，也可直接传 identifier
+    if (!identifier || !password) {
+      return res.status(400).json({ success: false, message: '请输入账号和密码' });
     }
 
-    // 查找用户
-    const user = await prisma.user.findUnique({
-      where: { username },
-      include: { employee: { include: { department: true } } },
-    });
+    // ====== 步骤1：调用 HRMS 统一认证验证密码 ======
+    const hrmsUrl = process.env.HRMS_API_URL || 'http://localhost:4002';
+    let hrmsResult;
+    try {
+      const hrmsResp = await fetch(`${hrmsUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier, password }),
+      });
+      hrmsResult = await hrmsResp.json();
+    } catch (fetchErr) {
+      return res.status(503).json({
+        success: false,
+        message: '认证服务暂不可用，请稍后重试',
+      });
+    }
 
+    if (!hrmsResult.success) {
+      return res.status(401).json({
+        success: false,
+        message: hrmsResult.message || '账号或密码错误',
+      });
+    }
+
+    const hrmsUser = hrmsResult.data.user;
+    const userEmail = hrmsUser.email;
+    const employeeInfo = hrmsResult.data.user.employee;
+
+    // ====== 步骤2：从 Portal DB 获取 SCM 角色权限 ======
+    const { modules: scmModules } = await getUserScmPermissions(userEmail);
+    const scmRole = deriveScmRole(scmModules);
+
+    // ====== 步骤3：在 SCM 本地查找/创建用户（复用 SSO 的多策略匹配逻辑） ======
+    let user = null;
+    let matchedEmployee = null;
+
+    // 3.1 通过 globalId 精确匹配
+    if (employeeInfo?.globalId) {
+      const employee = await prisma.employee.findFirst({
+        where: { globalId: employeeInfo.globalId },
+        include: { user: true },
+      });
+      if (employee?.user) {
+        user = await prisma.user.findUnique({
+          where: { id: employee.user.id },
+          include: { employee: { include: { department: true } } },
+        });
+      } else if (employee) {
+        matchedEmployee = employee;
+      }
+    }
+
+    // 3.2 通过 Employee.email 精确匹配
+    if (!user && !matchedEmployee && userEmail) {
+      const employee = await prisma.employee.findFirst({
+        where: { email: userEmail },
+        include: { user: true },
+      });
+      if (employee?.user) {
+        user = await prisma.user.findUnique({
+          where: { id: employee.user.id },
+          include: { employee: { include: { department: true } } },
+        });
+      } else if (employee) {
+        matchedEmployee = employee;
+      }
+    }
+
+    // 3.3 尝试 username = email 前缀
+    if (!user && !matchedEmployee) {
+      const emailPrefix = userEmail.split('@')[0];
+      user = await prisma.user.findUnique({
+        where: { username: emailPrefix },
+        include: { employee: { include: { department: true } } },
+      });
+      if (user?.employee) {
+        matchedEmployee = user.employee;
+      }
+    }
+
+    // 3.4 尝试通过工号匹配
+    if (!user && !matchedEmployee && employeeInfo?.employeeNo) {
+      const empByNo = await prisma.employee.findFirst({
+        where: { empNo: employeeInfo.employeeNo },
+        include: { user: true },
+      });
+      if (empByNo?.user) {
+        user = await prisma.user.findUnique({
+          where: { id: empByNo.user.id },
+          include: { employee: { include: { department: true } } },
+        });
+      } else if (empByNo) {
+        matchedEmployee = empByNo;
+      }
+    }
+
+    // 3.5 找到员工但无用户 → 自动创建
+    if (!user && matchedEmployee) {
+      const uname = userEmail.split('@')[0] || matchedEmployee.empNo;
+      user = await prisma.user.create({
+        data: {
+          username: uname,
+          passwordHash: await bcrypt.hash(uname + '-sso-' + Date.now(), 10),
+          role: scmRole,
+          status: 'ACTIVE',
+          employeeId: matchedEmployee.id,
+        },
+        include: { employee: { include: { department: true } } },
+      });
+    }
+
+    // 3.6 未找到员工 → 尝试仅通过 SCM username 查找（兜底：可能用户存在于 SCM 但 employee 表未同步）
+    if (!user && !matchedEmployee) {
+      const emailPrefix = userEmail.split('@')[0];
+      user = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { username: emailPrefix },
+            { username: identifier },
+          ],
+        },
+        include: { employee: { include: { department: true } } },
+      });
+    }
+
+    // 3.7 完全找不到
     if (!user) {
-      return res.status(401).json({ success: false, message: '用户名或密码错误' });
+      return res.status(403).json({
+        success: false,
+        message: '您的账号在 SCM 系统中尚未配置，请联系管理员在员工管理中添加您的信息',
+      });
     }
+
+    // ====== 步骤4：同步角色权限（以 Portal 为准） ======
+    if (user.role !== scmRole) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { role: scmRole, status: 'ACTIVE' },
+      });
+      user.role = scmRole;
+    }
+
     if (user.status !== 'ACTIVE') {
       return res.status(403).json({ success: false, message: '账号已被禁用，请联系管理员' });
-    }
-
-    // 验证密码
-    const valid = await bcrypt.compare(password, user.passwordHash);
-    if (!valid) {
-      return res.status(401).json({ success: false, message: '用户名或密码错误' });
     }
 
     // 更新最后登录时间
@@ -230,16 +401,16 @@ router.post('/mobile-login', async (req, res, next) => {
       data: { lastLogin: new Date() },
     });
 
-    // 签发 SCM 本地 JWT（与 SSO 路由使用相同的 secret 和 payload 结构）
+    // ====== 步骤5：签发 SCM 本地 JWT ======
     const token = jwt.sign(
       {
         userId: user.id,
         role: user.role,
         username: user.username,
-        permissions: [],
-        globalId: user.employee?.globalId || null,
-        employeeName: user.employee?.name || '',
-        email: user.employee?.email || '',
+        permissions: scmModules,
+        globalId: user.employee?.globalId || employeeInfo?.globalId || null,
+        employeeName: user.employee?.name || employeeInfo?.name || '',
+        email: user.employee?.email || userEmail || '',
       },
       process.env.JWT_SECRET || 'xdj-scm-jwt-secret-2026',
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
@@ -253,7 +424,7 @@ router.post('/mobile-login', async (req, res, next) => {
           id: user.id,
           username: user.username,
           role: user.role,
-          permissions: [],
+          permissions: scmModules,
           employee: user.employee
             ? {
                 id: user.employee.id,
