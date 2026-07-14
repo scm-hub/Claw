@@ -138,7 +138,7 @@ export default function Dashboard() {
         'pull-hrms': '/sync/pull-hrms',
         'push-scm': '/sync/push-scm',
         'full': '/sync/full',
-        'kd-pull-all': '/kingdee/pull-all',
+        'kd-pull-all': '/kingdee/pull-all?full=true',
         'kd-push-all': '/kingdee/push-all',
         'kd-pull-customers': '/kingdee/pull-customers',
         'kd-pull-suppliers': '/kingdee/pull-suppliers',
