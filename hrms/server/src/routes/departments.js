@@ -556,9 +556,6 @@ router.post('/', authenticate, authorize('SUPER_ADMIN', 'HR_ADMIN'), async (req,
     if (!name || !name.trim()) {
       return res.status(400).json({ success: false, message: '部门名称不能为空' });
     }
-    if (!managerId) {
-      return res.status(400).json({ success: false, message: '请选择部门负责人' });
-    }
     // 检查同名部门
     const existing = await prisma.department.findFirst({ where: { name: name.trim() } });
     if (existing) {
@@ -608,10 +605,7 @@ router.put('/:id', authenticate, authorize('SUPER_ADMIN', 'HR_ADMIN'), async (re
       return res.status(400).json({ success: false, message: '不能将部门自身设为上级部门' });
     }
 
-    // 必填字段校验（上级部门允许为空，即顶层部门）
-    if (managerId !== undefined && !managerId) {
-      return res.status(400).json({ success: false, message: '请选择部门负责人' });
-    }
+    // 必填字段校验（上级部门允许为空，即顶层部门；负责人可空，后续可补）
 
     // 检查同名部门（排除自身）
     if (name && name.trim() !== existing.name) {

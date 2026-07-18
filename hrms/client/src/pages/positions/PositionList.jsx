@@ -1,23 +1,176 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Box, Card, CardContent, Typography, Button, IconButton,
   Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, MenuItem, Alert, CircularProgress,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Paper, Chip, Tooltip, Stack,
+  Paper, Chip, Tooltip, Stack, Popover, ClickAwayListener,
 } from '@mui/material';
 import {
   Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon,
   Work as WorkIcon, Sync as SyncIcon,
   ToggleOn as ToggleOnIcon, ToggleOff as ToggleOffIcon,
+  ArrowDropDown as ArrowDropDownIcon, ChevronRight as ChevronRightIcon,
+  ExpandMore as ExpandMoreIcon, Clear as ClearIcon,
 } from '@mui/icons-material';
 import PageHeader from '../../components/PageHeader';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import api from '../../hooks/useFetch';
 import useCanEdit from '../../hooks/useCanEdit';
 
+/* ========= 部门树形选择器 ========= */
+function findDeptInTree(tree, id) {
+  if (!id) return null;
+  for (const d of tree) {
+    if (d.id === id) return d;
+    if (d.children && d.children.length) {
+      const found = findDeptInTree(d.children, id);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+/* 递归渲染一个部门节点（可展开/收起） */
+function DeptTreeNode({ node, depth, expanded, onToggle, onSelect, selectedId }) {
+  const isExpanded = expanded.includes(node.id);
+  const hasChildren = node.children && node.children.length > 0;
+  const isSelected = selectedId === node.id;
+  return (
+    <Box>
+      <Box
+        onClick={() => onSelect(node)}
+        sx={{
+          display: 'flex', alignItems: 'center',
+          pl: 1 + depth * 2, pr: 1, py: 0.75,
+          cursor: 'pointer', borderRadius: 1, mx: 0.5,
+          bgcolor: isSelected ? 'primary.main' : 'transparent',
+          color: isSelected ? 'primary.contrastText' : 'text.primary',
+          '&:hover': { bgcolor: isSelected ? 'primary.dark' : 'action.hover' },
+        }}
+      >
+        {hasChildren ? (
+          <IconButton size="small" sx={{ p: 0.25, mr: 0.5, color: 'inherit' }}
+            onClick={(e) => { e.stopPropagation(); onToggle(node.id); }}>
+            {isExpanded ? <ExpandMoreIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />}
+          </IconButton>
+        ) : (
+          <Box sx={{ width: 24, mr: 0.5 }} />
+        )}
+        <Typography variant="body2" sx={{ flex: 1 }}>{node.name}</Typography>
+      </Box>
+      {hasChildren && isExpanded && node.children.map((child) => (
+        <DeptTreeNode
+          key={child.id} node={child} depth={depth + 1}
+          expanded={expanded} onToggle={onToggle}
+          onSelect={onSelect} selectedId={selectedId}
+        />
+      ))}
+    </Box>
+  );
+}
+
+function DepartmentTreeSelect({ value, onChange, deptTree, label = '所属部门' }) {
+  const [anchorEl, setAnchorEl] = useState(null);
+  const [expanded, setExpanded] = useState(() => {
+    // 默认展开所有一级部门
+    return (deptTree || []).map((d) => d.id);
+  });
+  const open = Boolean(anchorEl);
+
+  useEffect(() => {
+    if (open) {
+      // 打开时默认展开所有节点，方便快速定位
+      const allIds = [];
+      const collect = (nodes) => {
+        nodes.forEach((n) => { allIds.push(n.id); if (n.children) collect(n.children); });
+      };
+      collect(deptTree || []);
+      setExpanded(allIds);
+    }
+  }, [open, deptTree]);
+
+  const selected = useMemo(() => findDeptInTree(deptTree || [], value), [deptTree, value]);
+
+  const handleToggle = (id) => {
+    setExpanded((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  };
+
+  const handleSelect = (node) => {
+    onChange(node.id);
+    setAnchorEl(null);
+  };
+
+  const handleClear = (e) => {
+    e.stopPropagation();
+    onChange('');
+  };
+
+  return (
+    <>
+      <TextField
+        fullWidth label={label} margin="normal"
+        value={selected ? selected.name : ''}
+        onClick={(e) => setAnchorEl(e.currentTarget)}
+        placeholder="请选择部门（可点击展开层级）"
+        InputProps={{
+          readOnly: true,
+          endAdornment: (
+            <Stack direction="row" spacing={0.5} alignItems="center" sx={{ pr: 0.5 }}>
+              {value && (
+                <IconButton size="small" onClick={handleClear} edge="end">
+                  <ClearIcon fontSize="small" />
+                </IconButton>
+              )}
+              <ArrowDropDownIcon />
+            </Stack>
+          ),
+        }}
+      />
+      <Popover
+        open={open} anchorEl={anchorEl} onClose={() => setAnchorEl(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+        PaperProps={{ sx: { width: anchorEl ? anchorEl.clientWidth : 320, maxHeight: 360, mt: 0.5, borderRadius: 2 } }}
+      >
+        <ClickAwayListener onClickAway={() => setAnchorEl(null)}>
+          <Box sx={{ py: 0.5, overflow: 'auto', maxHeight: 360 }}>
+            {/* 通用岗位选项 */}
+            <Box
+              onClick={() => { onChange(''); setAnchorEl(null); }}
+              sx={{
+                display: 'flex', alignItems: 'center', px: 1, py: 0.75, mx: 0.5,
+                cursor: 'pointer', borderRadius: 1,
+                bgcolor: !value ? 'primary.main' : 'transparent',
+                color: !value ? 'primary.contrastText' : 'text.primary',
+                '&:hover': { bgcolor: !value ? 'primary.dark' : 'action.hover' },
+              }}
+            >
+              <Box sx={{ width: 24, mr: 0.5 }} />
+              <Typography variant="body2" sx={{ fontStyle: 'italic' }}>无（通用岗位）</Typography>
+            </Box>
+            {(deptTree || []).length === 0 ? (
+              <Box sx={{ px: 2, py: 2, textAlign: 'center' }}>
+                <Typography variant="body2" color="text.secondary">暂无部门数据</Typography>
+              </Box>
+            ) : (
+              (deptTree || []).map((node) => (
+                <DeptTreeNode
+                  key={node.id} node={node} depth={0}
+                  expanded={expanded} onToggle={handleToggle}
+                  onSelect={handleSelect} selectedId={value}
+                />
+              ))
+            )}
+          </Box>
+        </ClickAwayListener>
+      </Popover>
+    </>
+  );
+}
+
 /* ========= 岗位表单弹窗 ========= */
-function PositionFormDialog({ open, editing, departments, onClose, onSave }) {
+function PositionFormDialog({ open, editing, deptTree, onClose, onSave }) {
   const initialValues = editing
     ? {
         name: editing.name || '', code: editing.code || '', departmentId: editing.departmentId || '',
@@ -117,16 +270,11 @@ function PositionFormDialog({ open, editing, departments, onClose, onSave }) {
             helperText="编码由系统自动生成，不可修改"
           />
         )}
-        <TextField
-          fullWidth select label="所属部门" margin="normal"
+        <DepartmentTreeSelect
           value={form.departmentId}
-          onChange={(e) => setForm({ ...form, departmentId: e.target.value })}
-        >
-          <MenuItem value="">无（通用岗位）</MenuItem>
-          {departments.map((d) => (
-            <MenuItem key={d.id} value={d.id}>{d.name}</MenuItem>
-          ))}
-        </TextField>
+          onChange={(v) => setForm({ ...form, departmentId: v })}
+          deptTree={deptTree}
+        />
         <TextField
           fullWidth select label="职级" margin="normal"
           value={form.level}
@@ -194,7 +342,8 @@ function PositionFormDialog({ open, editing, departments, onClose, onSave }) {
 export default function PositionList() {
   const canEdit = useCanEdit();
   const [positions, setPositions] = useState([]);
-  const [departments, setDepartments] = useState([]);
+  const [departments, setDepartments] = useState([]);  // 树形结构
+  const [flatDepts, setFlatDepts] = useState([]);        // 平铺结构（用于表格展示）
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [formOpen, setFormOpen] = useState(false);
@@ -211,12 +360,14 @@ export default function PositionList() {
     setLoading(true);
     setError('');
     try {
-      const [posRes, deptRes] = await Promise.all([
+      const [posRes, deptRes, flatRes] = await Promise.all([
         api.get('/positions'),
+        api.get('/departments'),
         api.get('/departments/flat'),
       ]);
       setPositions(posRes.data || []);
       setDepartments(deptRes.data || []);
+      setFlatDepts(flatRes.data || []);
     } catch (err) {
       setError(err.message || '加载数据失败');
     } finally {
@@ -277,7 +428,7 @@ export default function PositionList() {
 
   const getDeptName = (deptId) => {
     if (!deptId) return '-';
-    const d = departments.find((item) => item.id === deptId);
+    const d = flatDepts.find((item) => item.id === deptId);
     return d ? d.name : '-';
   };
 
@@ -413,7 +564,7 @@ export default function PositionList() {
       <PositionFormDialog
         open={formOpen}
         editing={editing}
-        departments={departments}
+        deptTree={departments}
         onClose={() => { setFormOpen(false); setEditing(null); }}
         onSave={handleSave}
       />

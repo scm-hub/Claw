@@ -38,6 +38,24 @@ const fileStorage = multer.diskStorage({
 });
 const fileUpload = multer({ storage: fileStorage, limits: { fileSize: 10 * 1024 * 1024 } });
 
+// Excel 导入专用 multer（接受 xlsx/xls）
+const excelUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+      'application/vnd.ms-excel', // .xls
+      'application/octet-stream', // 浏览器有时对 .xlsx 报告成这个
+    ];
+    if (allowed.includes(file.mimetype) || /\.(xlsx|xls)$/i.test(file.originalname)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`不支持的文件类型: ${file.mimetype}`), false);
+    }
+  },
+});
+
 router.get('/', authenticate, async (req, res, next) => {
   try {
     const { page, pageSize, search, departmentId, status } = req.query;
@@ -83,7 +101,7 @@ router.get('/import/template', authenticate, authorize('HR_ADMIN'), async (req, 
 });
 
 /* ========= 批量导入员工 ========= */
-router.post('/import', authenticate, authorize('HR_ADMIN'), upload.single('file'), async (req, res, next) => {
+router.post('/import', authenticate, authorize('HR_ADMIN'), excelUpload.single('file'), async (req, res, next) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: '请上传 Excel 文件' });

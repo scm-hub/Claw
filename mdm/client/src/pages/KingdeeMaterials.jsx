@@ -88,7 +88,7 @@ export default function KingdeeMaterials() {
         <Table size="small">
           <TableHead><TableRow>
             <TableCell>编码</TableCell><TableCell>名称</TableCell><TableCell>规格型号</TableCell>
-            <TableCell>基本单位</TableCell><TableCell>采购单位</TableCell><TableCell>销售单位</TableCell>
+            <TableCell>基本单位</TableCell><TableCell>库存单位</TableCell><TableCell>采购单位</TableCell><TableCell>销售单位</TableCell>
             <TableCell>物料分组</TableCell><TableCell>等级</TableCell>
             <TableCell>所属组织</TableCell><TableCell>最后同步</TableCell>
           </TableRow></TableHead>
@@ -100,6 +100,7 @@ export default function KingdeeMaterials() {
                 <TableCell>{r.name}</TableCell>
                 <TableCell>{extra.spec || '-'}</TableCell>
                 <TableCell>{extra.baseUnitName || extra.baseUnit || '-'}</TableCell>
+                <TableCell>{extra.storeUnitName || extra.storeUnit || '-'}</TableCell>
                 <TableCell>{extra.purchaseUnitName || extra.purchaseUnit || '-'}</TableCell>
                 <TableCell>{extra.salesUnitName || extra.salesUnit || '-'}</TableCell>
                 <TableCell>{extra.materialGroupName || extra.materialGroup || '-'}</TableCell>
@@ -117,7 +118,7 @@ export default function KingdeeMaterials() {
               </TableRow>);
             })}
             {records.length === 0 && !loading && (
-              <TableRow><TableCell colSpan={10} align="center">暂无物料数据，请先从金蝶拉取</TableCell></TableRow>
+              <TableRow><TableCell colSpan={11} align="center">暂无物料数据，请先从金蝶拉取</TableCell></TableRow>
             )}
           </TableBody>
         </Table>

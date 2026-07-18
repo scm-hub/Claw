@@ -4,11 +4,12 @@ import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Chip, Dialog, DialogTitle, DialogContent, DialogActions, IconButton,
   InputAdornment, MenuItem, TablePagination, Stepper, Step, StepLabel,
-  CircularProgress,
+  CircularProgress, Tooltip,
 } from '@mui/material';
-import { Add, Delete, Search, KeyboardArrowDown, KeyboardArrowUp, RestartAlt } from '@mui/icons-material';
+import { Add, Delete, Search, KeyboardArrowDown, KeyboardArrowUp, RestartAlt, Map as MapIcon } from '@mui/icons-material';
 import api from '../../lib/api';
 import { useAuthStore } from '../../store/authStore';
+import MapPicker from '../../components/MapPicker';
 import { getDisplayUnit, getConversionDesc, needsConversion, baseUnitPriceToSales, baseQtyToSales, salesQtyToBase } from '../../lib/unitConversion';
 
 const STATUS_LABELS = { PENDING_APPROVAL: '待审核', DRAFT: '待审核', IN_APPROVAL: '审批中', APPROVED: '已审核', REJECTED: '已拒绝', SHIPPING: '发货中', DELIVERED: '已送达', CLOSED: '已关闭', CANCELLED: '已取消', CONFIRMED: '已审核' };
@@ -40,6 +41,8 @@ export default function SalesOrderList() {
   const [detailCache, setDetailCache] = useState({});
   const [confirmClose, setConfirmClose] = useState(false);
   const [dialogOriginal, setDialogOriginal] = useState(null);
+  const [mapOpen, setMapOpen] = useState(false);
+  const [calculatingDistance, setCalculatingDistance] = useState(false);
 
   // 根据物料ID获取指导百分比（默认130%）
   const getGuidePercent = (materialId) => {
@@ -54,7 +57,7 @@ export default function SalesOrderList() {
     const cur = dialog.data;
     const orig = dialogOriginal;
     // 对比顶层字段
-    const topKeys = ['customerId', 'warehouseId', 'salesRepId', 'orderDate', 'expectedDate', 'priceType', 'notes'];
+    const topKeys = ['customerId', 'warehouseId', 'destinationAddress', 'salesRepId', 'orderDate', 'expectedDate', 'priceType', 'notes'];
     if (topKeys.some(k => String(cur[k] ?? '') !== String(orig[k] ?? ''))) return true;
     // 对比 items 数组
     const curItems = cur.items || [];
@@ -102,7 +105,7 @@ export default function SalesOrderList() {
         api.get('/address?status=ACTIVE&pageSize=999'), // 目的地地址（启用）
         api.get('/master/warehouses'), // 仓库列表
         api.get('/master/employees'),
-        api.get('/master/materials?page=1&pageSize=999'),
+        api.get('/master/materials?page=1&pageSize=999&module=sales'),
       ]);
       setCustomers(cRes.data?.list || []);
       setAddresses(aRes.data?.list || []); // 地址数据
@@ -117,7 +120,7 @@ export default function SalesOrderList() {
 
   const handleSave = async () => {
     const { data } = dialog;
-    if (!data.customerId || !data.warehouseId || !data.addressId) { alert('请选择客户、仓库和目的地'); return; }
+    if (!data.customerId || !data.warehouseId || !data.destinationAddress) { alert('请选择客户、仓库和目的地'); return; }
     if (!data.expectedDate) { alert('请选择发货日期'); return; }
     if (!data.items?.length) { alert('请至少添加一条明细'); return; }
     
@@ -222,7 +225,7 @@ export default function SalesOrderList() {
         data: {
           customerId: d.customerId,
           warehouseId: d.warehouseId,
-          addressId: d.addressId || '',
+          destinationAddress: d.destinationAddress || d.address?.address || '',
           salesRepId: d.salesRepId || '',
           orderDate: new Date().toISOString().slice(0, 10),
           expectedDate: '',
@@ -291,7 +294,7 @@ export default function SalesOrderList() {
           id: d.id,
           customerId: d.customerId,
           warehouseId: d.warehouseId,
-          addressId: d.addressId || '',
+          destinationAddress: d.destinationAddress || d.address?.address || '',
           salesRepId: d.salesRepId || '',
           orderDate: d.orderDate?.slice(0, 10),
           expectedDate: d.expectedDate?.slice(0, 10),
@@ -507,7 +510,7 @@ export default function SalesOrderList() {
           <TextField size="small" type="date" label="截止日期" value={filterDateEnd} onChange={e => setFilterDateEnd(e.target.value)} InputLabelProps={{ shrink: true }} sx={{ width: 140 }} />
           <Button variant="contained" onClick={loadData} size="small">查询</Button>
           <Button variant="outlined" size="small" startIcon={<RestartAlt />} onClick={() => { setKeyword(''); setStatus(''); setFilterCustomerId(''); setFilterWarehouseId(''); setFilterDateStart(''); setFilterDateEnd(''); }}>重置</Button>
-          <Button variant="outlined" startIcon={<Add />} onClick={() => { const initData = { customerId: '', warehouseId: '', addressId: '', salesRepId: user?.employee?.id || '', orderDate: new Date().toISOString().slice(0, 10), expectedDate: '', priceType: 'STANDARD', notes: '', items: [] }; setDialog({ open: true, mode: 'create', isCopy: false, data: initData }); setDialogOriginal(JSON.parse(JSON.stringify(initData))); }}>新增订单</Button>
+          <Button variant="outlined" startIcon={<Add />} onClick={() => { const initData = { customerId: '', warehouseId: '', destinationAddress: '', salesRepId: user?.employee?.id || '', orderDate: new Date().toISOString().slice(0, 10), expectedDate: '', priceType: 'STANDARD', notes: '', items: [] }; setDialog({ open: true, mode: 'create', isCopy: false, data: initData }); setDialogOriginal(JSON.parse(JSON.stringify(initData))); }}>新增订单</Button>
         </Stack>
         {/* 筛选标签 */}
         {(() => {
@@ -705,11 +708,26 @@ export default function SalesOrderList() {
           {dialog.data && (
             <Box sx={{ mt: 1 }}>
               <Grid container spacing={2}>
-                <Grid item xs={4}><TextField fullWidth select label="客户" required value={dialog.data.customerId} onChange={e => setDialog({ ...dialog, data: { ...dialog.data, customerId: e.target.value } })}>{customers.map(c => <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>)}</TextField></Grid>
-                <Grid item xs={4}><TextField fullWidth select label="目的地" required value={dialog.data.addressId || ''} onChange={e => { const addr = addresses.find(w => w.id === e.target.value); setDialog({ ...dialog, data: { ...dialog.data, addressId: e.target.value, kilometers: addr?.distance ? Number(addr.distance) : '' } }); }}>{addresses.map(w => <MenuItem key={w.id} value={w.id}>{w.title || `${w.originName}至${w.destName}`}</MenuItem>)}</TextField></Grid>
+                <Grid item xs={4}><TextField fullWidth select label="客户" required value={dialog.data.customerId} onChange={e => { const cid = e.target.value; const customer = customers.find(c => c.id === cid); setDialog({ ...dialog, data: { ...dialog.data, customerId: cid, destinationAddress: customer?.address || dialog.data.destinationAddress || '' } }); }}>{customers.map(c => <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>)}</TextField></Grid>
+                <Grid item xs={4}>
+                  <TextField fullWidth label="目的地 *" value={dialog.data.destinationAddress || ''}
+                    onChange={e => setDialog({ ...dialog, data: { ...dialog.data, destinationAddress: e.target.value } })}
+                    placeholder="点击右侧地图图标选点，或手动输入"
+                    InputProps={{
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <Tooltip title="在地图上选择地址">
+                            <IconButton size="small" onClick={() => setMapOpen(true)} edge="end" sx={{ p: 0.5 }}>
+                              <MapIcon fontSize="small" color="primary" />
+                            </IconButton>
+                          </Tooltip>
+                        </InputAdornment>
+                      ),
+                    }} />
+                </Grid>
                 <Grid item xs={2}><TextField fullWidth label="公里数" value={dialog.data.kilometers ?? ''} InputProps={{ readOnly: true }} sx={{ '& .MuiInputBase-input': { color: 'text.secondary' } }} /></Grid>
                 <Grid item xs={2}><TextField fullWidth label="业务员" value={employees.find(e => e.id === dialog.data.salesRepId)?.name || user?.employee?.name || '-'} InputProps={{ readOnly: true }} sx={{ '& .MuiInputBase-input': { color: 'text.secondary', cursor: 'default' } }} /></Grid>
-                <Grid item xs={3}><TextField fullWidth select label="仓库" value={dialog.data.warehouseId || ''} onChange={e => { setDialog({ ...dialog, data: { ...dialog.data, warehouseId: e.target.value } }); refreshStockForAllItems(e.target.value); }}>{warehouseList.map(w => <MenuItem key={w.id} value={w.id}>{w.name}</MenuItem>)}</TextField></Grid>
+                <Grid item xs={3}><TextField fullWidth select label="仓库" value={dialog.data.warehouseId || ''} onChange={async e => { const wid = e.target.value; const warehouse = warehouseList.find(w => w.id === wid); setDialog({ ...dialog, data: { ...dialog.data, warehouseId: wid } }); refreshStockForAllItems(wid); if (dialog.data.destinationAddress && warehouse?.address) { setCalculatingDistance(true); try { const dRes = await api.get('/address/calc-distance', { params: { origin: warehouse.address, dest: dialog.data.destinationAddress } }); if (dRes.success && dRes.data?.distance != null) { setDialog(prev => ({ ...prev, data: { ...prev.data, kilometers: dRes.data.distance } })); } } catch {} setCalculatingDistance(false); } }}>{warehouseList.map(w => <MenuItem key={w.id} value={w.id}>{w.name}</MenuItem>)}</TextField></Grid>
                 <Grid item xs={3}><TextField fullWidth type="date" label="订单日期" value={dialog.data.orderDate} onChange={e => setDialog({ ...dialog, data: { ...dialog.data, orderDate: e.target.value } })} InputLabelProps={{ shrink: true }} /></Grid>
                 <Grid item xs={3}><TextField fullWidth type="date" label="发货日期" required value={dialog.data.expectedDate} onChange={e => setDialog({ ...dialog, data: { ...dialog.data, expectedDate: e.target.value } })} InputLabelProps={{ shrink: true }} /></Grid>
                 <Grid item xs={3}>
@@ -832,6 +850,11 @@ export default function SalesOrderList() {
         </DialogContent>
         <DialogActions><Button onClick={handleCloseDialog}>取消</Button><Button variant="contained" onClick={handleSave}>保存</Button></DialogActions>
       </Dialog>
+
+      {/* ===== 地图选点弹窗 ===== */}
+      <MapPicker open={mapOpen} onClose={() => setMapOpen(false)}
+        onConfirm={(data) => { setDialog(prev => ({ ...prev, data: { ...prev.data, destinationAddress: data.address } })); setMapOpen(false); }}
+        title="选择目的地" />
 
       {/* ===== 关闭确认弹窗 ===== */}
       <Dialog open={confirmClose} onClose={() => setConfirmClose(false)} maxWidth="xs">

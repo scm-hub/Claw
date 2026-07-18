@@ -8,9 +8,10 @@ import {
 } from '@mui/material';
 import {
   Add, Edit, Delete, Search, RestartAlt, FilterList, Warehouse, CheckCircle,
-  Block, ToggleOn, ToggleOff, AcUnit,
+  Block, ToggleOn, ToggleOff, AcUnit, Map as MapIcon,
 } from '@mui/icons-material';
 import api from '../../lib/api';
+import MapPicker from '../../components/MapPicker';
 
 const STATUS_MAP = { ACTIVE: '启用', INACTIVE: '停用' };
 
@@ -23,6 +24,7 @@ export default function WarehouseList() {
   const [dialog, setDialog] = useState({ open: false, data: null });
   const [form, setForm] = useState({});
   const [formErrors, setFormErrors] = useState({});
+  const [mapOpen, setMapOpen] = useState(false);
   const [refDialog, setRefDialog] = useState({ open: false, message: '', references: [] });
   const [confirmClose, setConfirmClose] = useState(false);
   const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0, cold: 0 });
@@ -107,6 +109,7 @@ export default function WarehouseList() {
     // 必填校验
     const errors = {};
     if (!form.name?.trim()) errors.name = '必填';
+    if (!form.address?.trim()) errors.address = '必填';
     if (!form.warehouseManagerId) errors.warehouseManagerId = '必填';
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
@@ -472,8 +475,22 @@ export default function WarehouseList() {
               />
             </Grid>
             <Grid item xs={12}>
-              <TextField fullWidth size="small" label="地址" value={form.address || ''}
-                onChange={(e) => setForm({ ...form, address: e.target.value })} />
+              <TextField fullWidth size="small" label="地址 *" value={form.address || ''}
+                onChange={(e) => { setForm({ ...form, address: e.target.value }); setFormErrors({ ...formErrors, address: undefined }); }}
+                placeholder="点击右侧地图图标选点，或手动输入"
+                error={!!formErrors.address}
+                helperText={formErrors.address || ''}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <Tooltip title="在地图上选择地址">
+                        <IconButton size="small" onClick={() => setMapOpen(true)} edge="end">
+                          <MapIcon fontSize="small" color="primary" />
+                        </IconButton>
+                      </Tooltip>
+                    </InputAdornment>
+                  ),
+                }} />
             </Grid>
             <Grid item xs={6}>
               <FormControl fullWidth size="small" error={!!formErrors.warehouseManagerId}>
@@ -532,6 +549,18 @@ export default function WarehouseList() {
           <Button variant="contained" onClick={handleSave}>保存</Button>
         </DialogActions>
       </Dialog>
+
+      {/* 地图选点 */}
+      <MapPicker
+        open={mapOpen}
+        onClose={() => setMapOpen(false)}
+        onConfirm={(data) => {
+          setForm({ ...form, address: data.address });
+          setFormErrors({ ...formErrors, address: undefined });
+          setMapOpen(false);
+        }}
+        title="选择仓库地址"
+      />
 
       {/* ===== 删除引用详情弹窗 ===== */}
       <Dialog open={refDialog.open} onClose={() => setRefDialog({ open: false, message: '', references: [] })} maxWidth="md" fullWidth>

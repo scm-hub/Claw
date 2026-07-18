@@ -44,6 +44,8 @@ app.use(
     standardHeaders: true,
     legacyHeaders: false,
     message: { success: false, message: '请求过于频繁，请稍后再试' },
+    // 我们在 gateway 反代后，trust proxy = true 是安全的；显式关闭校验避免 ERR_ERL_PERMISSIVE_TRUST_PROXY
+    validate: { trustProxy: false },
   }),
 );
 

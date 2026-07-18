@@ -3,13 +3,14 @@ import {
   Box, Card, CardContent, Typography, Button, TextField, Table, TableBody,
   TableCell, TableContainer, TableHead, TableRow, Paper, IconButton, Dialog,
   DialogTitle, DialogContent, DialogActions, Grid, MenuItem, InputAdornment,
-  TablePagination, Chip, Stack, Autocomplete, Tooltip,
+  TablePagination, Chip, Stack, Autocomplete, Tooltip, Snackbar, Alert,
 } from '@mui/material';
 import {
   Add, Edit, Delete, Search, Inventory2, RestartAlt,
-  ToggleOn, ToggleOff, FilterList, QrCode, Thermostat,
+  ToggleOn, ToggleOff, FilterList, QrCode, Thermostat, Sync,
 } from '@mui/icons-material';
 import api from '../../lib/api';
+import { useAuthStore } from '../../store/authStore';
 import { getConversionDesc, needsConversion } from '../../lib/unitConversion';
 
 function fmtMoney(n) {
@@ -18,11 +19,49 @@ function fmtMoney(n) {
 }
 
 const STATUS_MAP = {
+  DRAFT: { label: '草稿', color: 'warning' },
   ACTIVE: { label: '启用', color: 'success' },
   INACTIVE: { label: '停用', color: 'default' },
 };
 
 export default function MaterialList() {
+  const user = useAuthStore(s => s.user);
+  const role = user?.role || '';
+
+  // 字段编辑权限：按部门判断（采购部全员可编辑采购字段，国内贸易部及子部门全员可编辑销售字段）
+  const userDeptName = user?.employee?.department?.name || '';
+  const userDeptId = user?.employee?.department?.id || '';
+  const userDeptParentId = user?.employee?.department?.parentId || '';
+  // 国内贸易部 ID
+  const SALES_ROOT_ID = 'cmrndohgx0005ndd6rjnqbu0y';
+  // 国内贸易部的已知子部门 ID（兜底，避免旧 session 无 parentId 时判断失败）
+  const SALES_CHILD_IDS = ['cmrndohh5000dndd6pmfqiol0', 'cmrndohgz0007ndd6y3pxvca5'];
+  const isSalesDept = role === 'SUPER_ADMIN'
+    || userDeptId === SALES_ROOT_ID
+    || userDeptParentId === SALES_ROOT_ID
+    || SALES_CHILD_IDS.includes(userDeptId);
+  const canEdit = {
+    purchase: role === 'SUPER_ADMIN' || userDeptName === '采购部',
+    sales: isSalesDept,
+    warehouse: role === 'SUPER_ADMIN' || role === 'WAREHOUSE_MANAGER' || role === 'WAREHOUSE_STAFF',
+  };
+
+  // 只读字段的视觉样式：灰色背景 + 虚线边框 + 斜体 + 锁图标
+  const roSx = (isReadOnly) => isReadOnly ? {
+    '& .MuiOutlinedInput-root': {
+      backgroundColor: '#f5f5f5',
+      '& fieldset': { borderColor: 'rgba(0,0,0,0.2)', borderStyle: 'dashed' },
+      '&:hover fieldset': { borderColor: 'rgba(0,0,0,0.3)' },
+    },
+    '& .MuiInputBase-input': {
+      color: 'rgba(0,0,0,0.55)',
+      WebkitTextFillColor: 'rgba(0,0,0,0.55)',
+      fontStyle: 'italic',
+    },
+    '& .MuiInputLabel-root': { color: 'text.disabled' },
+    '& .MuiFormHelperText-root': { color: 'text.disabled' },
+  } : undefined;
+
   const [list, setList] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
@@ -31,14 +70,14 @@ export default function MaterialList() {
 
   // 查询条件
   const [keyword, setKeyword] = useState('');
-  const [category, setCategory] = useState('');
   const [status, setStatus] = useState('');
   const [barcode, setBarcode] = useState('');
   const [groupIdFilter, setGroupIdFilter] = useState('');
   const [gradeIdFilter, setGradeIdFilter] = useState('');
+  const [purchaseComplete, setPurchaseComplete] = useState('');  // '' | '1' | '0'
+  const [salesComplete, setSalesComplete] = useState('');        // '' | '1' | '0'
 
-  // 分类列表 + 产品组列表 + 等级列表
-  const [categories, setCategories] = useState([]);
+  // 产品组列表 + 等级列表
   const [materialGroups, setMaterialGroups] = useState([]);
   const [materialGrades, setMaterialGrades] = useState([]);
 
@@ -56,6 +95,23 @@ export default function MaterialList() {
   const [kdInput, setKdInput] = useState('');
   const [kdSelected, setKdSelected] = useState(null);
   const kdSearchTimer = useRef(null);
+  const [massImporting, setMassImporting] = useState(false);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+
+  const syncFromKingdee = async () => {
+    setMassImporting(true);
+    try {
+      const data = await api.post('/master/sync-materials-from-kingdee');
+      const { total, created, updated, cleaned = 0, deactivated = 0 } = data.data;
+      const parts = [`共 ${total} 条`, `新增 ${created}`, `更新 ${updated}`];
+      if (cleaned > 0) parts.push(`清理 ${cleaned} 条`);
+      if (deactivated > 0) parts.push(`停用 ${deactivated} 条`);
+      setSnackbar({ open: true, message: `同步完成：${parts.join('，')}`, severity: 'success' });
+      loadList(); loadSummary();
+    } catch (err) {
+      setSnackbar({ open: true, message: '同步失败: ' + (err.message || '未知错误'), severity: 'error' });
+    } finally { setMassImporting(false); }
+  };
 
   // 状态中文映射
   const STATUS_LABELS = {
@@ -75,11 +131,12 @@ export default function MaterialList() {
       params.set('page', String(page + 1));
       params.set('pageSize', String(rowsPerPage));
       if (keyword) params.set('keyword', keyword);
-      if (category) params.set('category', category);
       if (status) params.set('status', status);
       if (barcode) params.set('barcode', barcode);
       if (groupIdFilter) params.set('groupId', groupIdFilter);
       if (gradeIdFilter) params.set('gradeId', gradeIdFilter);
+      if (purchaseComplete) params.set('purchaseComplete', purchaseComplete);
+      if (salesComplete) params.set('salesComplete', salesComplete);
       const res = await api.get(`/master/materials?${params.toString()}`);
       setList(res.data?.list || []);
       setTotal(res.data?.total || 0);
@@ -88,14 +145,7 @@ export default function MaterialList() {
     } finally {
       setLoading(false);
     }
-  }, [page, rowsPerPage, keyword, category, status, barcode, groupIdFilter, gradeIdFilter]);
-
-  const loadCategories = useCallback(async () => {
-    try {
-      const res = await api.get('/master/materials/categories');
-      setCategories(res.data || []);
-    } catch { /* ignore */ }
-  }, []);
+  }, [page, rowsPerPage, keyword, status, barcode, groupIdFilter, gradeIdFilter, purchaseComplete, salesComplete]);
 
   const loadMaterialGroups = useCallback(async () => {
     try {
@@ -124,14 +174,6 @@ export default function MaterialList() {
     finally { setKdLoading(false); }
   }, []);
 
-  // 弹窗内关键字输入防抖搜索（确保中文输入后也能正确过滤）
-  const searchKingdeeMaterials = useCallback((keyword) => {
-    if (kdSearchTimer.current) clearTimeout(kdSearchTimer.current);
-    kdSearchTimer.current = setTimeout(() => {
-      loadKingdeeMaterials(keyword, 200);
-    }, 300);
-  }, [loadKingdeeMaterials]);
-
   const loadSummary = useCallback(async () => {
     try {
       const [all, active] = await Promise.all([
@@ -147,11 +189,22 @@ export default function MaterialList() {
   }, []);
 
   useEffect(() => { loadList(); }, [loadList]);
-  useEffect(() => { loadCategories(); loadSummary(); loadMaterialGroups(); loadMaterialGrades(); }, [loadCategories, loadSummary, loadMaterialGroups, loadMaterialGrades]);
+  useEffect(() => { loadSummary(); loadMaterialGroups(); loadMaterialGrades(); }, [loadSummary, loadMaterialGroups, loadMaterialGrades]);
+  // 弹窗内产品名称搜索：仅用户输入非空关键字时触发服务端搜索（IME 兼容）
+  // 空输入交给 handleOpen 的 loadKingdeeMaterials('', 99999) 处理，避免覆盖全量数据
+  useEffect(() => {
+    if (!dialog.open) return;
+    if (!kdInput) return;  // 空输入不触发 API，handleOpen 已加载全部
+    if (kdSearchTimer.current) clearTimeout(kdSearchTimer.current);
+    kdSearchTimer.current = setTimeout(() => {
+      loadKingdeeMaterials(kdInput, 200);
+    }, 300);
+    return () => { if (kdSearchTimer.current) clearTimeout(kdSearchTimer.current); };
+  }, [kdInput, dialog.open, loadKingdeeMaterials]);
 
   const handleSearch = () => { setPage(0); loadList(); };
   const handleReset = () => {
-    setKeyword(''); setCategory(''); setStatus(''); setBarcode(''); setGroupIdFilter(''); setGradeIdFilter('');
+    setKeyword(''); setStatus(''); setBarcode(''); setGroupIdFilter(''); setGradeIdFilter(''); setPurchaseComplete(''); setSalesComplete('');
     setPage(0);
   };
 
@@ -186,7 +239,7 @@ export default function MaterialList() {
 
   const handleOpen = (data = null) => {
     setDialog({ open: true, data });
-    loadKingdeeMaterials('', 500); // 加载金蝶物料到本地下拉
+    loadKingdeeMaterials('', 500); // 加载前500条预览；输入关键字时走服务端搜索
     // 重置金蝶物料选择状态
     setKdSelected(data ? { code: data.code, name: data.name, _kdCode: data.code } : null);
     setKdInput(data?.name || '');
@@ -196,14 +249,15 @@ export default function MaterialList() {
       ...data,
       gradeIds: existingGradeIds,
     } : {
-      name: '', spec: '', unit: '', category: '', shelfLifeDays: '', code: '',
+      name: '', spec: '', unit: '', shelfLifeDays: '', code: '',
       status: 'ACTIVE',
       barcode: '', storageTempMin: '', storageTempMax: '',
       initialPurchasePrice: '',
       guidePercent: '',
       purchaseLeadTime: '',
-      purchaseUnit: '', salesUnit: '',
+      purchaseUnit: '', salesUnit: '', storeUnit: '',
       purchaseConversionFactor: '', salesConversionFactor: '',
+      localSalesUnit: '', localSalesConversionFactor: '',
       materialGroupName: '',
       gradeIds: [],
     });
@@ -212,15 +266,26 @@ export default function MaterialList() {
   // 表单校验错误集合
   const [formErrors, setFormErrors] = useState({});
 
+  const isCreate = !form.id; // 新增 vs 编辑
+
   const handleSave = async () => {
     const errors = {};
+    // 基础字段：始终必填
     if (!form.name?.trim()) errors.name = '请输入产品名称';
-    if (form.purchaseConversionFactor === '' || form.purchaseConversionFactor === null || form.purchaseConversionFactor === undefined) errors.purchaseConversionFactor = '必填';
-    if (form.salesConversionFactor === '' || form.salesConversionFactor === null || form.salesConversionFactor === undefined) errors.salesConversionFactor = '必填';
-    if (form.shelfLifeDays === '' || form.shelfLifeDays === null || form.shelfLifeDays === undefined) errors.shelfLifeDays = '必填';
-    if (form.purchaseLeadTime === '' || form.purchaseLeadTime === null || form.purchaseLeadTime === undefined) errors.purchaseLeadTime = '必填';
-    if (form.initialPurchasePrice === '' || form.initialPurchasePrice === null || form.initialPurchasePrice === undefined) errors.initialPurchasePrice = '必填';
-    if (form.guidePercent === '' || form.guidePercent === null || form.guidePercent === undefined) errors.guidePercent = '必填';
+
+    // 采购组字段：仅当采购角色编辑已有产品时校验（管理员新增时跳过）
+    if (!isCreate && canEdit.purchase) {
+      if (form.purchaseConversionFactor === '' || form.purchaseConversionFactor === null || form.purchaseConversionFactor === undefined) errors.purchaseConversionFactor = '必填';
+      if (form.shelfLifeDays === '' || form.shelfLifeDays === null || form.shelfLifeDays === undefined) errors.shelfLifeDays = '必填';
+      if (form.purchaseLeadTime === '' || form.purchaseLeadTime === null || form.purchaseLeadTime === undefined) errors.purchaseLeadTime = '必填';
+    }
+    // 销售组字段：仅当销售角色编辑已有产品时校验
+    if (!isCreate && canEdit.sales) {
+      if (!form.localSalesUnit?.trim()) errors.localSalesUnit = '请输入本地销售单位';
+      if (form.localSalesConversionFactor === '' || form.localSalesConversionFactor === null || form.localSalesConversionFactor === undefined) errors.localSalesConversionFactor = '必填';
+      if (form.salesConversionFactor === '' || form.salesConversionFactor === null || form.salesConversionFactor === undefined) errors.salesConversionFactor = '必填';
+      if (form.guidePercent === '' || form.guidePercent === null || form.guidePercent === undefined) errors.guidePercent = '必填';
+    }
     setFormErrors(errors);
     if (Object.keys(errors).length > 0) return;
     try {
@@ -236,6 +301,7 @@ export default function MaterialList() {
       payload.storageTempMax = payload.storageTempMax === '' ? null : Number(payload.storageTempMax);
       payload.purchaseConversionFactor = payload.purchaseConversionFactor === '' || payload.purchaseConversionFactor === undefined ? 1 : Number(payload.purchaseConversionFactor);
       payload.salesConversionFactor = payload.salesConversionFactor === '' || payload.salesConversionFactor === undefined ? 1 : Number(payload.salesConversionFactor);
+      payload.localSalesConversionFactor = payload.localSalesConversionFactor === '' || payload.localSalesConversionFactor === undefined ? 1 : Number(payload.localSalesConversionFactor);
       // gradeIds 保持数组，PUT 时后端会替换关联
       if (dialog.data) {
         await api.put(`/master/materials/${dialog.data.id}`, payload);
@@ -244,7 +310,6 @@ export default function MaterialList() {
       }
       setDialog({ open: false, data: null });
       loadList();
-      loadCategories();
       loadSummary();
     } catch (err) { alert(err.message); }
   };
@@ -281,14 +346,19 @@ export default function MaterialList() {
     } catch (err) { alert(err.message); }
   };
 
-  const hasFilters = keyword || category || status || barcode || gradeIdFilter;
+  const hasFilters = keyword || status || barcode || groupIdFilter || gradeIdFilter || purchaseComplete || salesComplete;
 
   return (
     <Box>
       {/* ===== 标题栏 ===== */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
         <Typography variant="h6" sx={{ fontWeight: 600 }}>产品管理</Typography>
-        <Button variant="contained" startIcon={<Add />} onClick={() => handleOpen()}>新增产品</Button>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          {role === 'SUPER_ADMIN' && (
+            <Button variant="outlined" startIcon={<Sync />} onClick={syncFromKingdee} disabled={massImporting}>{massImporting ? '同步中...' : '从金蝶同步'}</Button>
+          )}
+          <Button variant="contained" startIcon={<Add />} onClick={() => handleOpen()}>新增产品</Button>
+        </Box>
       </Box>
 
       {/* ===== 统计概览 ===== */}
@@ -356,15 +426,6 @@ export default function MaterialList() {
               }}
             />
             <Autocomplete
-              size="small" freeSolo
-              options={categories}
-              value={category}
-              onChange={(_, v) => setCategory(v || '')}
-              onInputChange={(_, v) => setCategory(v)}
-              sx={{ width: 140 }}
-              renderInput={(params) => <TextField {...params} label="分类" />}
-            />
-            <Autocomplete
               size="small"
               options={materialGroups}
               getOptionLabel={option => option.name || ''}
@@ -388,8 +449,27 @@ export default function MaterialList() {
               sx={{ width: 110 }}
             >
               <MenuItem value="">全部</MenuItem>
+              <MenuItem value="DRAFT">草稿</MenuItem>
               <MenuItem value="ACTIVE">启用</MenuItem>
               <MenuItem value="INACTIVE">停用</MenuItem>
+            </TextField>
+            <TextField
+              select size="small" label="采购补全"
+              value={purchaseComplete} onChange={(e) => setPurchaseComplete(e.target.value)}
+              sx={{ width: 110 }}
+            >
+              <MenuItem value="">全部</MenuItem>
+              <MenuItem value="1">已补全</MenuItem>
+              <MenuItem value="0">未补全</MenuItem>
+            </TextField>
+            <TextField
+              select size="small" label="销售补全"
+              value={salesComplete} onChange={(e) => setSalesComplete(e.target.value)}
+              sx={{ width: 110 }}
+            >
+              <MenuItem value="">全部</MenuItem>
+              <MenuItem value="1">已补全</MenuItem>
+              <MenuItem value="0">未补全</MenuItem>
             </TextField>
             <Button variant="contained" size="small" startIcon={<Search />} onClick={handleSearch}>查询</Button>
             <Button variant="outlined" size="small" startIcon={<RestartAlt />} onClick={handleReset} disabled={!hasFilters}>重置</Button>
@@ -407,7 +487,6 @@ export default function MaterialList() {
           {hasFilters && (
             <Stack direction="row" spacing={1} sx={{ mt: 1.5, flexWrap: 'wrap', gap: 0.5 }}>
               {keyword && <Chip size="small" label={`关键词: ${keyword}`} onDelete={() => { setKeyword(''); }} color="primary" variant="outlined" />}
-              {category && <Chip size="small" label={`分类: ${category}`} onDelete={() => { setCategory(''); }} color="primary" variant="outlined" />}
               {status && <Chip size="small" label={`状态: ${STATUS_MAP[status]?.label || status}`} onDelete={() => { setStatus(''); }} color="primary" variant="outlined" />}
               {barcode && <Chip size="small" label={`条码: ${barcode}`} onDelete={() => { setBarcode(''); }} color="primary" variant="outlined" />}
               {gradeIdFilter && <Chip size="small" label={`等级: ${materialGrades.find(g => g.id === gradeIdFilter)?.name || gradeIdFilter}`} onDelete={() => { setGradeIdFilter(''); }} color="primary" variant="outlined" />}
@@ -426,9 +505,11 @@ export default function MaterialList() {
               <TableCell sx={{ fontWeight: 600 }}>物料分组</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>规格</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>单位</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>库存单位</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>采购单位</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>销售单位</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>分类</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>本地销售单位</TableCell>
+              <TableCell sx={{ fontWeight: 600 }} align="center">本地换算系数</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>等级</TableCell>
               <TableCell sx={{ fontWeight: 600 }} align="center">条码</TableCell>
               <TableCell sx={{ fontWeight: 600 }} align="center">保质期</TableCell>
@@ -437,14 +518,16 @@ export default function MaterialList() {
               <TableCell sx={{ fontWeight: 600 }} align="right">指导百分比(%)</TableCell>
               <TableCell sx={{ fontWeight: 600 }} align="center">储存温度</TableCell>
               <TableCell sx={{ fontWeight: 600 }} align="center">状态</TableCell>
+              <TableCell sx={{ fontWeight: 600 }} align="center" title="采购部字段补全">采购补全</TableCell>
+              <TableCell sx={{ fontWeight: 600 }} align="center" title="销售部字段补全">销售补全</TableCell>
               <TableCell sx={{ fontWeight: 600 }} align="center">操作</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={17} align="center"><Typography color="text.secondary" sx={{ py: 3 }}>加载中...</Typography></TableCell></TableRow>
+              <TableRow><TableCell colSpan={22} align="center"><Typography color="text.secondary" sx={{ py: 3 }}>加载中...</Typography></TableCell></TableRow>
             ) : list.length === 0 ? (
-              <TableRow><TableCell colSpan={17} align="center"><Typography color="text.secondary" sx={{ py: 3 }}>暂无数据</Typography></TableCell></TableRow>
+              <TableRow><TableCell colSpan={22} align="center"><Typography color="text.secondary" sx={{ py: 3 }}>暂无数据</Typography></TableCell></TableRow>
             ) : (
               list.map((item) => {
                 const st = STATUS_MAP[item.status] || { label: item.status, color: 'default' };
@@ -462,6 +545,7 @@ export default function MaterialList() {
                     </TableCell>
                     <TableCell>{item.spec || '-'}</TableCell>
                     <TableCell>{item.unit || '-'}</TableCell>
+                    <TableCell>{item.storeUnit || '-'}</TableCell>
                     <TableCell>
                       {item.purchaseUnit && Number(item.purchaseConversionFactor || 1) !== 1
                         ? <Tooltip title={getConversionDesc(item, 'purchase')}><span>{item.purchaseUnit}<Typography variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>(×{item.purchaseConversionFactor})</Typography></span></Tooltip>
@@ -472,7 +556,12 @@ export default function MaterialList() {
                         ? <Tooltip title={getConversionDesc(item, 'sales')}><span>{item.salesUnit}<Typography variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>(×{item.salesConversionFactor})</Typography></span></Tooltip>
                         : item.salesUnit || (item.unit || '-')}
                     </TableCell>
-                    <TableCell>{item.category ? <Chip size="small" label={item.category} variant="outlined" /> : '-'}</TableCell>
+                    <TableCell>{item.localSalesUnit || '-'}</TableCell>
+                    <TableCell align="center">
+                      {item.localSalesConversionFactor && Number(item.localSalesConversionFactor) !== 1
+                        ? <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 600, color: 'primary.main' }}>×{Number(item.localSalesConversionFactor).toLocaleString()}</Typography>
+                        : '-'}
+                    </TableCell>
                     <TableCell>
                       {item.materialGrades && item.materialGrades.length > 0 ? (
                         <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ gap: 0.5 }}>
@@ -504,6 +593,16 @@ export default function MaterialList() {
                     </TableCell>
                     <TableCell align="center">
                       <Chip size="small" label={st.label} color={st.color} />
+                    </TableCell>
+                    <TableCell align="center">
+                      {item.purchaseFieldsComplete
+                        ? <Chip size="small" label="✅" sx={{ bgcolor: 'transparent' }} />
+                        : <Chip size="small" label="⏳" variant="outlined" color="warning" />}
+                    </TableCell>
+                    <TableCell align="center">
+                      {item.salesFieldsComplete
+                        ? <Chip size="small" label="✅" sx={{ bgcolor: 'transparent' }} />
+                        : <Chip size="small" label="⏳" variant="outlined" color="warning" />}
                     </TableCell>
                     <TableCell align="center">
                     <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="center">
@@ -565,10 +664,6 @@ export default function MaterialList() {
                 }}
                 onInputChange={(_, newInputValue, reason) => {
                   setKdInput(newInputValue);
-                  // 只在用户输入时触发搜索，选择/重置时不触发
-                  if (reason === 'input') {
-                    searchKingdeeMaterials(newInputValue);
-                  }
                 }}
                 onChange={(_, newValue) => {
                   setKdSelected(newValue || null);
@@ -588,6 +683,7 @@ export default function MaterialList() {
                       unit: newValue.baseUnitName || newValue.baseUnit || form.unit || '',
                       purchaseUnit: newValue.purchaseUnitName || newValue.purchaseUnit || form.purchaseUnit || '',
                       salesUnit: newValue.salesUnitName || newValue.salesUnit || form.salesUnit || '',
+                      storeUnit: newValue.storeUnitName || newValue.storeUnit || form.storeUnit || '',
                       materialGroupName: newValue.materialGroupName || newValue.materialGroup || '',
                       gradeIds: matchedIds,
                     });
@@ -628,32 +724,37 @@ export default function MaterialList() {
               <TextField fullWidth size="small" label="单位（基准单位）" value={form.unit || ''} onChange={(e) => setForm({ ...form, unit: e.target.value })} placeholder="如: kg/克/箱" helperText="最小计量单位，所有内部计算使用此单位" />
             </Grid>
             <Grid item xs={6}>
-              <TextField fullWidth size="small" label="采购单位" value={form.purchaseUnit || ''} onChange={(e) => setForm({ ...form, purchaseUnit: e.target.value })} placeholder="如: 斤/箱，不填则与基准单位相同" />
+              <TextField fullWidth size="small" label="库存单位" value={form.storeUnit || ''} onChange={(e) => setForm({ ...form, storeUnit: e.target.value })} placeholder="金蝶自动填入" helperText="金蝶物料库存计量单位" />
             </Grid>
             <Grid item xs={6}>
-              <TextField fullWidth size="small" type="number" label="采购换算系数 *" value={form.purchaseConversionFactor ?? ''}
-                onChange={(e) => { setForm({ ...form, purchaseConversionFactor: e.target.value === '' ? '' : Number(e.target.value) }); setFormErrors({ ...formErrors, purchaseConversionFactor: undefined }); }}
-                placeholder="1采购单位=?基准单位，如: 500(1斤=500克)" onFocus={(e) => e.target.select()} inputProps={{ min: 0.0001, step: 1 }}
-                error={!!formErrors.purchaseConversionFactor} helperText={formErrors.purchaseConversionFactor || ''} />
+              <TextField fullWidth size="small" label="采购单位" value={form.purchaseUnit || ''} onChange={(e) => setForm({ ...form, purchaseUnit: e.target.value })} placeholder="如: 斤/箱，不填则与基准单位相同" disabled={!canEdit.purchase} sx={roSx(!canEdit.purchase)} />
             </Grid>
             <Grid item xs={6}>
-              <TextField fullWidth size="small" label="销售单位" value={form.salesUnit || ''} onChange={(e) => setForm({ ...form, salesUnit: e.target.value })} placeholder="如: 盒/份，不填则与基准单位相同" />
+              <TextField fullWidth size="small" label="采购换算系数 *" value={form.purchaseConversionFactor ?? ''}
+                onChange={(e) => { setForm({ ...form, purchaseConversionFactor: e.target.value }); setFormErrors({ ...formErrors, purchaseConversionFactor: undefined }); }}
+                placeholder="1采购单位=?基准单位，如: 500(1斤=500克)" onFocus={(e) => e.target.select()} inputProps={{ min: 0.0001 }}
+                error={!!formErrors.purchaseConversionFactor} helperText={formErrors.purchaseConversionFactor || ''} disabled={!canEdit.purchase} sx={roSx(!canEdit.purchase)} />
             </Grid>
             <Grid item xs={6}>
-              <TextField fullWidth size="small" type="number" label="销售换算系数 *" value={form.salesConversionFactor ?? ''}
-                onChange={(e) => { setForm({ ...form, salesConversionFactor: e.target.value === '' ? '' : Number(e.target.value) }); setFormErrors({ ...formErrors, salesConversionFactor: undefined }); }}
-                placeholder="1销售单位=?基准单位，如: 50(1盒=50克)" onFocus={(e) => e.target.select()} inputProps={{ min: 0.0001, step: 1 }}
-                error={!!formErrors.salesConversionFactor} helperText={formErrors.salesConversionFactor || ''} />
+              <TextField fullWidth size="small" label="销售单位" value={form.salesUnit || ''} onChange={(e) => setForm({ ...form, salesUnit: e.target.value })} placeholder="如: 盒/份，不填则与基准单位相同" disabled={!canEdit.sales} sx={roSx(!canEdit.sales)} />
             </Grid>
             <Grid item xs={6}>
-              <Autocomplete
-                size="small" freeSolo
-                options={categories}
-                value={form.category || ''}
-                onChange={(_, v) => setForm({ ...form, category: v || '' })}
-                onInputChange={(_, v) => setForm({ ...form, category: v })}
-                renderInput={(params) => <TextField {...params} label="分类" placeholder="如: 鲜菇/干菇/菌包" />}
-              />
+              <TextField fullWidth size="small" label="销售换算系数 *" value={form.salesConversionFactor ?? ''}
+                onChange={(e) => { setForm({ ...form, salesConversionFactor: e.target.value }); setFormErrors({ ...formErrors, salesConversionFactor: undefined }); }}
+                placeholder="1销售单位=?基准单位，如: 50(1盒=50克)" onFocus={(e) => e.target.select()} inputProps={{ min: 0.0001 }}
+                error={!!formErrors.salesConversionFactor} helperText={formErrors.salesConversionFactor || ''} disabled={!canEdit.sales} sx={roSx(!canEdit.sales)} />
+            </Grid>
+            <Grid item xs={6}>
+              <TextField fullWidth size="small" label="本地销售单位 *" value={form.localSalesUnit || ''}
+                onChange={(e) => { setForm({ ...form, localSalesUnit: e.target.value }); setFormErrors({ ...formErrors, localSalesUnit: undefined }); }}
+                placeholder="如: 斤/箱/包，本地实际使用的销售单位" disabled={!canEdit.sales} sx={roSx(!canEdit.sales)}
+                error={!!formErrors.localSalesUnit} helperText={formErrors.localSalesUnit || ''} />
+            </Grid>
+            <Grid item xs={6}>
+              <TextField fullWidth size="small" label="本地销售换算系数 *" value={form.localSalesConversionFactor ?? ''}
+                onChange={(e) => { setForm({ ...form, localSalesConversionFactor: e.target.value }); setFormErrors({ ...formErrors, localSalesConversionFactor: undefined }); }}
+                placeholder="1本地销售单位=?基准单位，如: 500(1斤=500克)" onFocus={(e) => e.target.select()} inputProps={{ min: 0.0001 }}
+                error={!!formErrors.localSalesConversionFactor} helperText={formErrors.localSalesConversionFactor || ''} disabled={!canEdit.sales} sx={roSx(!canEdit.sales)} />
             </Grid>
             <Grid item xs={6}>
               <Autocomplete
@@ -672,42 +773,43 @@ export default function MaterialList() {
               />
             </Grid>
             <Grid item xs={6}>
-              <TextField fullWidth size="small" type="number" label="保质期(天) *" value={form.shelfLifeDays ?? ''}
-                onChange={(e) => { setForm({ ...form, shelfLifeDays: e.target.value === '' ? '' : Number(e.target.value) }); setFormErrors({ ...formErrors, shelfLifeDays: undefined }); }}
-                placeholder="0" onFocus={(e) => e.target.select()} inputProps={{ min: 0 }}
-                error={!!formErrors.shelfLifeDays} helperText={formErrors.shelfLifeDays || ''} />
+              <TextField fullWidth size="small" label="保质期(天) *" value={form.shelfLifeDays ?? ''}
+                onChange={(e) => { setForm({ ...form, shelfLifeDays: e.target.value }); setFormErrors({ ...formErrors, shelfLifeDays: undefined }); }}
+                placeholder="0" onFocus={(e) => e.target.select()} inputProps={{ inputMode: 'numeric' }}
+                error={!!formErrors.shelfLifeDays} helperText={formErrors.shelfLifeDays || ''} disabled={!canEdit.purchase} sx={roSx(!canEdit.purchase)} />
             </Grid>
             <Grid item xs={6}>
-              <TextField fullWidth size="small" type="number" label="采购周期(天) *" value={form.purchaseLeadTime ?? ''}
-                onChange={(e) => { setForm({ ...form, purchaseLeadTime: e.target.value === '' ? '' : Number(e.target.value) }); setFormErrors({ ...formErrors, purchaseLeadTime: undefined }); }}
-                placeholder="0" onFocus={(e) => e.target.select()} inputProps={{ min: 0 }}
-                error={!!formErrors.purchaseLeadTime} helperText={formErrors.purchaseLeadTime || ''} />
+              <TextField fullWidth size="small" label="采购周期(天) *" value={form.purchaseLeadTime ?? ''}
+                onChange={(e) => { setForm({ ...form, purchaseLeadTime: e.target.value }); setFormErrors({ ...formErrors, purchaseLeadTime: undefined }); }}
+                placeholder="0" onFocus={(e) => e.target.select()} inputProps={{ inputMode: 'numeric' }}
+                error={!!formErrors.purchaseLeadTime} helperText={formErrors.purchaseLeadTime || ''} disabled={!canEdit.purchase} sx={roSx(!canEdit.purchase)} />
             </Grid>
             <Grid item xs={6}>
-              <TextField fullWidth size="small" type="number" label="采购期初价(元) *" value={form.initialPurchasePrice ?? ''}
-                onChange={(e) => { setForm({ ...form, initialPurchasePrice: e.target.value === '' ? '' : Number(e.target.value) }); setFormErrors({ ...formErrors, initialPurchasePrice: undefined }); }}
-                placeholder="0.00" onFocus={(e) => e.target.select()} inputProps={{ min: 0, step: 0.01 }}
+              <TextField fullWidth size="small" label="采购期初价(元) *" value={form.initialPurchasePrice ?? ''}
+                onChange={(e) => { setForm({ ...form, initialPurchasePrice: e.target.value }); setFormErrors({ ...formErrors, initialPurchasePrice: undefined }); }}
+                placeholder="0.00" onFocus={(e) => e.target.select()} inputProps={{ inputMode: 'decimal' }}
+                disabled={role !== 'SUPER_ADMIN'} sx={roSx(role !== 'SUPER_ADMIN')}
                 error={!!formErrors.initialPurchasePrice} helperText={formErrors.initialPurchasePrice || ''} />
             </Grid>
             <Grid item xs={6}>
-              <TextField fullWidth size="small" type="number" label="指导百分比(%) *" value={form.guidePercent ?? ''}
-                onChange={(e) => { setForm({ ...form, guidePercent: e.target.value === '' ? '' : Number(e.target.value) }); setFormErrors({ ...formErrors, guidePercent: undefined }); }}
-                placeholder="30" onFocus={(e) => e.target.select()} inputProps={{ min: 0, step: 1 }}
-                error={!!formErrors.guidePercent} helperText={formErrors.guidePercent || ''} />
+              <TextField fullWidth size="small" label="指导百分比(%) *" value={form.guidePercent ?? ''}
+                onChange={(e) => { setForm({ ...form, guidePercent: e.target.value }); setFormErrors({ ...formErrors, guidePercent: undefined }); }}
+                placeholder="30" onFocus={(e) => e.target.select()} inputProps={{ inputMode: 'numeric' }}
+                error={!!formErrors.guidePercent} helperText={formErrors.guidePercent || ''} disabled={!canEdit.sales} sx={roSx(!canEdit.sales)} />
             </Grid>
             <Grid item xs={6}>
               <TextField fullWidth size="small" label="条码" value={form.barcode || ''}
-                onChange={(e) => setForm({ ...form, barcode: e.target.value })} placeholder="可选"
+                onChange={(e) => setForm({ ...form, barcode: e.target.value })} placeholder="可选" disabled={!canEdit.warehouse} sx={roSx(!canEdit.warehouse)}
                 InputProps={{ startAdornment: <InputAdornment position="start"><QrCode sx={{ fontSize: 18 }} /></InputAdornment> }} />
             </Grid>
             <Grid item xs={4}>
-              <TextField fullWidth size="small" type="number" label="储存温度下限(°C)" value={form.storageTempMin ?? ''}
-                onChange={(e) => setForm({ ...form, storageTempMin: e.target.value })} placeholder="如: 2"
+              <TextField fullWidth size="small" label="储存温度下限(°C)" value={form.storageTempMin ?? ''}
+                onChange={(e) => setForm({ ...form, storageTempMin: e.target.value })} placeholder="如: 2" disabled={!canEdit.warehouse} sx={roSx(!canEdit.warehouse)}
                 InputProps={{ startAdornment: <InputAdornment position="start"><Thermostat sx={{ fontSize: 18 }} /></InputAdornment> }} />
             </Grid>
             <Grid item xs={4}>
-              <TextField fullWidth size="small" type="number" label="储存温度上限(°C)" value={form.storageTempMax ?? ''}
-                onChange={(e) => setForm({ ...form, storageTempMax: e.target.value })} placeholder="如: 8"
+              <TextField fullWidth size="small" label="储存温度上限(°C)" value={form.storageTempMax ?? ''}
+                onChange={(e) => setForm({ ...form, storageTempMax: e.target.value })} placeholder="如: 8" disabled={!canEdit.warehouse} sx={roSx(!canEdit.warehouse)}
                 InputProps={{ startAdornment: <InputAdornment position="start"><Thermostat sx={{ fontSize: 18 }} /></InputAdornment> }} />
             </Grid>
             <Grid item xs={4}>
@@ -784,6 +886,10 @@ export default function MaterialList() {
           <Button onClick={() => { setConfirmClose(false); setDialog({ open: false, data: null }); setFormErrors({}); }} color="error" variant="contained">放弃更改</Button>
         </DialogActions>
       </Dialog>
+
+      <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={() => setSnackbar({ ...snackbar, open: false })} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+        <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })}>{snackbar.message}</Alert>
+      </Snackbar>
     </Box>
   );
 }

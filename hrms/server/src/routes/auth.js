@@ -237,7 +237,12 @@ router.get('/me', authenticate, async (req, res, next) => {
 // 以下接口保留只读（列表）用于兼容，创建/修改/重置密码请到 Portal 操作
 router.get('/users', authenticate, authorize('HR_ADMIN'), async (req, res, next) => {
   try {
+    // 只返回有有效在职员工的用户
     const users = await prisma.user.findMany({
+      where: {
+        employeeId: { not: null },
+        employee: { status: 'ACTIVE' },
+      },
       select: {
         id: true,
         email: true,
@@ -247,7 +252,7 @@ router.get('/users', authenticate, authorize('HR_ADMIN'), async (req, res, next)
           select: { id: true, name: true, employeeNo: true, positionTitle: true, positionId: true, status: true, department: { select: { id: true, name: true } } },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { employee: { employeeNo: 'asc' } },
     });
     res.json({ success: true, data: users });
   } catch (err) {

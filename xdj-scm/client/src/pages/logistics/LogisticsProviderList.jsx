@@ -25,6 +25,7 @@ export default function LogisticsProviderList() {
   const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
   const [confirmClose, setConfirmClose] = useState(false);
   const [formOriginal, setFormOriginal] = useState(null);
+  const [formErrors, setFormErrors] = useState({});
 
   // 车辆相关
   const [expandedId, setExpandedId] = useState(null);
@@ -91,7 +92,19 @@ export default function LogisticsProviderList() {
   useEffect(() => { loadData(); }, []);
 
   const handleSave = () => {
-    if (!form.name) { setSnack({ open: true, msg: '名称必填', sev: 'error' }); return; }
+    // ===== 必填校验 =====
+    const errors = {};
+    if (!form.name?.trim()) errors.name = '必填';
+    if (!form.contactPerson?.trim()) errors.contactPerson = '必填';
+    if (!form.socialCreditCode?.trim()) errors.socialCreditCode = '必填';
+    // 营业执照：新增时必须上传，编辑时如已有文件则可不传
+    if (!editId && !licenseFile) errors._license = '必填';
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      return;
+    }
+    setFormErrors({});
+    // ===== 原有保存逻辑 =====
     const { _licenseUrl, ...formData } = form;
     const hasFile = !!licenseFile;
     if (editId) {
@@ -108,10 +121,15 @@ export default function LogisticsProviderList() {
         });
       }
     } else {
-      const postFn = hasFile
-        ? api.post('/logistics/providers', fd)
-        : api.post('/logistics/providers', formData);
-      postFn.then((res) => {
+      // 新增：需要先构建 FormData（之前漏了，导致 hasFile=true 时报 fd is not defined）
+      let postData = formData;
+      if (hasFile) {
+        const fd = new FormData();
+        Object.entries(formData).forEach(([k, v]) => fd.append(k, v));
+        fd.append('file', licenseFile);
+        postData = fd;
+      }
+      api.post('/logistics/providers', postData).then((res) => {
         const newId = res.data?.id;
         setSnack({ open: true, msg: '承运商创建成功，可继续添加车辆', sev: 'success' });
         loadData();
@@ -148,7 +166,7 @@ export default function LogisticsProviderList() {
   };
 
   const closeDialog = () => {
-    setDialogOpen(false); setEditId(null); setLicenseFile(null); setCreatedProviderId(null); setFormOriginal(null);
+    setDialogOpen(false); setEditId(null); setLicenseFile(null); setCreatedProviderId(null); setFormOriginal(null); setFormErrors({});
     setForm({ name: '', code: '', type: 'EXPRESS', contactPerson: '', contactPhone: '', socialCreditCode: '', serviceArea: '', contractNo: '', _licenseUrl: '' });
   };
 
@@ -382,7 +400,7 @@ export default function LogisticsProviderList() {
           </DialogContent>
         ) : (
         <DialogContent><Grid container spacing={2} sx={{ mt: 0.5 }}>
-          <Grid item xs={6}><TextField label="公司名称" fullWidth size="small" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Grid>
+          <Grid item xs={6}><TextField label="公司名称 *" fullWidth size="small" value={form.name} onChange={(e) => { setForm({ ...form, name: e.target.value }); setFormErrors({ ...formErrors, name: undefined }); }} error={!!formErrors.name} helperText={formErrors.name || ''} /></Grid>
           {editId && <Grid item xs={6}><TextField label="编码" fullWidth size="small" value={form.code} InputProps={{ readOnly: true }} sx={{ '& .MuiInputBase-input': { color: 'text.secondary' } }} /></Grid>}
           <Grid item xs={6}>
             <FormControl fullWidth size="small"><InputLabel>类型</InputLabel>
@@ -391,20 +409,23 @@ export default function LogisticsProviderList() {
               </Select>
             </FormControl>
           </Grid>
-          <Grid item xs={6}><TextField label="法人" fullWidth size="small" value={form.contactPerson} onChange={(e) => setForm({ ...form, contactPerson: e.target.value })} /></Grid>
+          <Grid item xs={6}><TextField label="法人 *" fullWidth size="small" value={form.contactPerson} onChange={(e) => { setForm({ ...form, contactPerson: e.target.value }); setFormErrors({ ...formErrors, contactPerson: undefined }); }} error={!!formErrors.contactPerson} helperText={formErrors.contactPerson || ''} /></Grid>
           <Grid item xs={6}><TextField label="电话" fullWidth size="small" value={form.contactPhone} onChange={(e) => setForm({ ...form, contactPhone: e.target.value })} /></Grid>
-          <Grid item xs={6}><TextField label="统一信用代码" fullWidth size="small" value={form.socialCreditCode} onChange={(e) => setForm({ ...form, socialCreditCode: e.target.value })} /></Grid>
+          <Grid item xs={6}><TextField label="统一信用代码 *" fullWidth size="small" value={form.socialCreditCode} onChange={(e) => { setForm({ ...form, socialCreditCode: e.target.value }); setFormErrors({ ...formErrors, socialCreditCode: undefined }); }} error={!!formErrors.socialCreditCode} helperText={formErrors.socialCreditCode || ''} /></Grid>
           <Grid item xs={6}><TextField label="服务区域" fullWidth size="small" value={form.serviceArea} onChange={(e) => setForm({ ...form, serviceArea: e.target.value })} /></Grid>
           <Grid item xs={12}><TextField label="合同编号" fullWidth size="small" value={form.contractNo} onChange={(e) => setForm({ ...form, contractNo: e.target.value })} /></Grid>
           <Grid item xs={12}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-              <Button variant="outlined" size="small" component="label" startIcon={<Add />}>
-                上传营业执照
-                <input type="file" hidden accept="image/*" onChange={(e) => { const f = e.target.files[0]; if (f) setLicenseFile(f); }} />
+              <Button variant="outlined" size="small" component="label" startIcon={<Add />}
+                onClick={() => setFormErrors({ ...formErrors, _license: undefined })}
+                color={formErrors._license ? 'error' : 'primary'}>
+                上传营业执照 *
+                <input type="file" hidden accept="image/*" onChange={(e) => { const f = e.target.files[0]; if (f) { setLicenseFile(f); setFormErrors({ ...formErrors, _license: undefined }); } }} />
               </Button>
               {licenseFile && <Typography variant="caption" color="primary">{licenseFile.name}</Typography>}
               {!licenseFile && editId && form._licenseUrl && <Typography variant="caption" color="text.secondary">已上传</Typography>}
             </Box>
+            {formErrors._license && <Typography variant="caption" color="error">{formErrors._license}</Typography>}
           </Grid>
         </Grid></DialogContent>
         )}

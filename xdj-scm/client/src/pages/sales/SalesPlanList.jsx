@@ -103,7 +103,7 @@ export default function SalesPlanList() {
         setDepartments(deptRes.data?.list || deptRes.data || []);
       } catch (e) { console.error('加载部门失败', e); }
       try {
-        const matRes = await api.get('/master/materials?page=1&pageSize=999');
+        const matRes = await api.get('/master/materials?page=1&pageSize=999&module=sales');
         setMaterials(matRes.list || matRes.data?.list || []);
       } catch (e) { console.error('加载物料失败', e); }
       try {

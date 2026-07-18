@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticate } from '../../middleware/auth.js';
 import { authorize, ROLES } from '../../middleware/rbac.js';
+import { getOrgFilter } from '../../middleware/orgContext.js';
 import prisma from '../../shared/prisma.js';
 import { purchaseQtyToBase, purchaseUnitPriceToBase, baseQtyToPurchase, baseUnitPriceToPurchase, getDisplayUnit } from '../../shared/unitConversion.js';
 import multer from 'multer';
@@ -19,28 +20,28 @@ router.use(authenticate);
 // 其他角色 → 如果有 PurchaserAssignment 绑定：部门负责人看同部门所有子计划，普通成员只看 assigneeId=自己的子计划；否则不返回数据
 // ============================================================
 
-// 缓存"是否有采购员绑定"的异步结果，避免每次请求都查库
-let _purchaserAssignmentCache = null;
-let _purchaserAssignmentCacheTime = 0;
+// 缓存"该员工是否是采购员"（以 employeeId 为单位，不依赖 SCM User）
+let _purchaserAssigneeMap = null;  // employeeId -> boolean
+let _purchaserAssigneeCacheTime = 0;
 const CACHE_TTL = 5 * 60 * 1000; // 5分钟缓存
 
 // 缓存"是否是部门负责人"的结果
 let _deptManagerCache = null;
 let _deptManagerCacheTime = 0;
 
-async function isPurchaserAssignee(userId) {
+// 判断该员工是否有采购员绑定记录（以 employeeId 为单位，不依赖 SCM User）
+async function isPurchaserAssignee(employeeId) {
   const now = Date.now();
-  if (_purchaserAssignmentCache && (now - _purchaserAssignmentCacheTime) < CACHE_TTL) {
-    return _purchaserAssignmentCache.has(userId);
+  if (_purchaserAssigneeMap && (now - _purchaserAssigneeCacheTime) < CACHE_TTL) {
+    return _purchaserAssigneeMap.has(employeeId);
   }
-  // 刷新缓存：查所有 ACTIVE 的 PurchaserAssignment，收集 userId 合集
   const assignments = await prisma.purchaserAssignment.findMany({
     where: { status: 'ACTIVE' },
-    select: { userId: true },
+    select: { employeeId: true },
   });
-  _purchaserAssignmentCache = new Set(assignments.map(a => a.userId));
-  _purchaserAssignmentCacheTime = now;
-  return _purchaserAssignmentCache.has(userId);
+  _purchaserAssigneeMap = new Set(assignments.map(a => a.employeeId));
+  _purchaserAssigneeCacheTime = now;
+  return _purchaserAssigneeMap.has(employeeId);
 }
 
 // 判断用户是否是其所在部门的负责人（Department.managerId === Employee.id）
@@ -86,11 +87,10 @@ async function getPlanDataFilter(user) {
       return { departmentId: user.departmentId };
     }
     // 非负责人或没有部门信息 → 只看分配给自己的 + 自己创建的草稿
-    const userId = user.userId;
     const employeeId = user.employeeId || user.userId;
     return {
       OR: [
-        { assigneeId: userId },
+        { assigneeId: employeeId },
         { creatorId: employeeId, status: 'DRAFT', parentPlanId: null },
       ],
     };
@@ -98,11 +98,10 @@ async function getPlanDataFilter(user) {
 
   // PURCHASE_STAFF：只看分配给自己的子计划 + 自己创建的草稿父计划
   if (role === ROLES.PURCHASE_STAFF) {
-    const userId = user.userId;
     const employeeId = user.employeeId || user.userId;
     return {
       OR: [
-        { assigneeId: userId }, // 分配给自己的子计划（含已分配、已转发）
+        { assigneeId: employeeId }, // 分配给自己的子计划（含已分配、已转发）
         { creatorId: employeeId, status: 'DRAFT', parentPlanId: null }, // 自己创建的草稿父计划
       ],
     };
@@ -111,12 +110,12 @@ async function getPlanDataFilter(user) {
   // 其他角色：检查是否有采购员绑定记录
   // 部门负责人 → 看同部门所有子计划（departmentId=自己部门）
   // 非负责人但有采购员绑定 → 只看 assigneeId=自己的子计划
-  if (await isPurchaserAssignee(user.userId)) {
+  if (await isPurchaserAssignee(user.employeeId || user.userId)) {
     if (await isDepartmentManager(user.userId) && user.departmentId) {
       return { departmentId: user.departmentId };
     }
     // 非负责人或没有部门信息 → 只看分配给自己的
-    return { assigneeId: user.userId };
+    return { assigneeId: user.employeeId || user.userId };
   }
 
   // 无采购员绑定的非采购角色：不返回任何采购计划数据
@@ -129,7 +128,7 @@ async function hasPlanViewAccess(user) {
     return true;
   }
   // 非采购角色：有采购员绑定记录则可查看
-  return await isPurchaserAssignee(user.userId);
+  return await isPurchaserAssignee(user.employeeId || user.userId);
 }
 
 // 质检附件上传配置（磁盘存储，10MB 限制）
@@ -183,8 +182,9 @@ router.get('/plans/suggest', async (req, res, next) => {
     const { days = 3 } = req.query;
     const analysisDays = Number(days);
 
+    // 智能建议物料范围：启用 或 采购补全已完成
     const materials = await prisma.material.findMany({
-      where: { status: 'ACTIVE' },
+      where: { OR: [{ status: 'ACTIVE' }, { purchaseFieldsComplete: true }] },
       include: { inventory: { include: { warehouse: { select: { id: true, name: true } } } } },
     });
 
@@ -316,7 +316,7 @@ router.post('/plans/from-suggestion', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHAS
         planType: 'MONTHLY',
         periodStart: new Date(periodStart || Date.now()),
         periodEnd: new Date(periodEnd || Date.now() + 30 * 86400000),
-        departmentId: departmentId || null,
+        departmentId: departmentId || req.user.departmentId || null,
         creatorId,
         remark: remark || '系统智能建议生成',
         status: 'DRAFT',
@@ -344,7 +344,7 @@ router.get('/plans/children', async (req, res, next) => {
 
     // 数据隔离：非采购角色不返回子计划数据
     if (!(await hasPlanViewAccess(req.user))) {
-      return res.json({ success: true, data: { allocated: [], forwarded: [] } });
+      return res.json({ success: true, data: { allocated: [], forwarded: [], cancelled: [] } });
     }
 
     // 查询所有子计划（parentPlanId != null），包含父计划信息
@@ -372,8 +372,7 @@ router.get('/plans/children', async (req, res, next) => {
           { title: { contains: keyword } },
           { parentPlan: { planNo: { contains: keyword } } },
           { parentPlan: { title: { contains: keyword } } },
-          { assignee: { username: { contains: keyword } } },
-          { assignee: { employee: { name: { contains: keyword } } } },
+          { assignee: { name: { contains: keyword } } },
         ],
       };
       if (where.AND) {
@@ -391,15 +390,16 @@ router.get('/plans/children', async (req, res, next) => {
       where,
       include: {
         parentPlan: { select: { id: true, planNo: true, title: true, status: true, priceDate: true, createdAt: true, department: { select: { name: true } } } },
-        assignee: { select: { id: true, username: true, employee: { select: { name: true } } } },
+        assignee: { select: { id: true, name: true, empNo: true } },
         _count: { select: { items: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
 
-    // 按 remark 区分：含"分配"为分配（含"自动分配"和"定时自动生成并分配"），含"转发"为转发
-    const allocatedChildren = children.filter((p) => p.remark?.includes('分配'));
-    const forwardedChildren = children.filter((p) => p.remark?.includes('转发') && !p.remark?.includes('分配'));
+    // 按 remark 区分：含"分配"为分配（含"自动分配"和"定时自动生成并分配"），含"转发"为转发，已作废单独归类
+    const allocatedChildren = children.filter((p) => p.status !== 'CANCELLED' && p.remark?.includes('分配'));
+    const forwardedChildren = children.filter((p) => p.status !== 'CANCELLED' && p.remark?.includes('转发') && !p.remark?.includes('分配'));
+    const cancelledChildren = children.filter((p) => p.status === 'CANCELLED');
 
     // 按父计划聚合 — 每个父计划一行，附带其子计划列表
     const aggregateByParent = (childList) => {
@@ -428,8 +428,9 @@ router.get('/plans/children', async (req, res, next) => {
 
     const allocated = aggregateByParent(allocatedChildren);
     const forwarded = aggregateByParent(forwardedChildren);
+    const cancelled = aggregateByParent(cancelledChildren);
 
-    res.json({ success: true, data: { allocated, forwarded } });
+    res.json({ success: true, data: { allocated, forwarded, cancelled } });
   } catch (err) { next(err); }
 });
 
@@ -471,12 +472,15 @@ router.get('/plans', async (req, res, next) => {
     if (status) where.status = status;
     if (planType) where.planType = planType;
 
-    // 排除"所有明细都已转发"的计划
-    where.items = { some: { forwarded: false } };
-
-    // 排除已分配完成的父计划（已有子计划的父计划不再显示在列表，避免重复）
-    // 只显示：子计划（parentPlanId 非空）或 尚未分配的父计划（无子计划）
-    where.childPlans = { none: {} };
+    // 排除"所有明细都已分配"的父计划（allocated=true 的已全部分配，不再展示）
+    // 保留：有未分配明细的父计划（支持补分配）+ 所有子计划
+    // 逻辑：不是 (父计划且没有未分配明细) → 是子计划 OR 父计划有未分配明细
+    where.NOT = {
+      AND: [
+        { parentPlanId: null },
+        { items: { none: { allocated: false } } },
+      ],
+    };
 
     const [list, total] = await Promise.all([
       prisma.purchasePlan.findMany({
@@ -485,7 +489,7 @@ router.get('/plans', async (req, res, next) => {
           department: { select: { id: true, name: true } },
           creator: { select: { id: true, name: true, empNo: true } },
           approver: { select: { id: true, name: true } },
-          assignee: { select: { id: true, username: true, employee: { select: { name: true } } } },
+          assignee: { select: { id: true, name: true, empNo: true } },
           parentPlan: { select: { id: true, planNo: true, title: true } },
           _count: { select: { items: true, purchaseOrders: true, childPlans: true } },
         },
@@ -513,11 +517,11 @@ router.get('/plans/:id', async (req, res, next) => {
         department: true,
         creator: { select: { id: true, name: true, empNo: true } },
         approver: { select: { id: true, name: true } },
-        assignee: { select: { id: true, username: true, employee: { select: { name: true } } } },
+        assignee: { select: { id: true, name: true, empNo: true } },
         parentPlan: { select: { id: true, planNo: true, title: true } },
         childPlans: {
           select: { id: true, planNo: true, title: true, status: true,
-            assignee: { select: { id: true, username: true, employee: { select: { name: true } } } },
+            assignee: { select: { id: true, name: true, empNo: true } },
             _count: { select: { items: true } },
           },
         },
@@ -542,14 +546,14 @@ router.get('/plans/:id', async (req, res, next) => {
         // 采购经理：部门负责人看本部门所有计划，非负责人只看自己的
         const isDeptManager = await isDepartmentManager(req.user.userId);
         const isSameDepartment = isDeptManager && req.user.departmentId && plan.departmentId === req.user.departmentId;
-        const isAssignedToMe = plan.assigneeId === req.user.userId;
+        const isAssignedToMe = plan.assigneeId === (req.user.employeeId || req.user.userId);
         const isMyDraftParent = plan.creatorId === (req.user.employeeId || req.user.userId) && plan.status === 'DRAFT' && !plan.parentPlanId;
         if (!isSameDepartment && !isAssignedToMe && !isMyDraftParent) {
           return res.status(403).json({ success: false, message: '您没有查看该采购计划的权限' });
         }
       } else if (role === ROLES.PURCHASE_STAFF) {
         // 采购员只能看分配给自己的子计划 + 自己创建的草稿父计划
-        const isAssignedToMe = plan.assigneeId === req.user.userId;
+        const isAssignedToMe = plan.assigneeId === (req.user.employeeId || req.user.userId);
         const isMyDraftParent = plan.creatorId === (req.user.employeeId || req.user.userId) && plan.status === 'DRAFT' && !plan.parentPlanId;
         if (!isAssignedToMe && !isMyDraftParent) {
           return res.status(403).json({ success: false, message: '您没有查看该采购计划的权限' });
@@ -558,7 +562,7 @@ router.get('/plans/:id', async (req, res, next) => {
         // 非采购角色：部门负责人可看同部门所有子计划，普通成员只能看分配给自己的
         const isDeptManager = await isDepartmentManager(req.user.userId);
         const isSameDepartment = isDeptManager && req.user.departmentId && plan.departmentId === req.user.departmentId;
-        const isAssignedToMe = plan.assigneeId === req.user.userId;
+        const isAssignedToMe = plan.assigneeId === (req.user.employeeId || req.user.userId);
         if (!isSameDepartment && !isAssignedToMe) {
           return res.status(403).json({ success: false, message: '您没有查看该采购计划的权限' });
         }
@@ -732,7 +736,7 @@ router.put('/plans/:id/confirm', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_STA
 
     // 数据隔离校验：采购员只能确认分配给自己的子计划
     if (req.user.role !== ROLES.SUPER_ADMIN) {
-      if (existing.assigneeId !== req.user.userId) {
+      if (existing.assigneeId !== (req.user.employeeId || req.user.userId)) {
         return res.status(403).json({ success: false, message: '您只能确认分配给您的采购计划' });
       }
     }
@@ -771,7 +775,7 @@ router.put('/plans/:id/items', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_STAFF
 
     // 数据隔离校验
     if (req.user.role !== ROLES.SUPER_ADMIN) {
-      if (existing.assigneeId !== req.user.userId) {
+      if (existing.assigneeId !== (req.user.employeeId || req.user.userId)) {
         return res.status(403).json({ success: false, message: '您只能修改分配给您的采购计划明细' });
       }
     }
@@ -825,6 +829,37 @@ router.put('/plans/:id/submit', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_STAF
   } catch (err) { next(err); }
 });
 
+// 作废 (任何非已确认/非已作废状态 → CANCELLED)
+router.put('/plans/:id/cancel', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_STAFF, ROLES.PURCHASE_MANAGER), async (req, res, next) => {
+  try {
+    const existing = await prisma.purchasePlan.findUnique({ where: { id: req.params.id } });
+    if (!existing) return res.status(404).json({ success: false, message: '采购计划不存在' });
+    if (existing.status === 'CONFIRMED') {
+      return res.status(400).json({ success: false, message: '已确认的采购计划不可作废' });
+    }
+    if (existing.status === 'CANCELLED') {
+      return res.status(400).json({ success: false, message: '该采购计划已作废' });
+    }
+    if (existing.status === 'DRAFT') {
+      return res.status(400).json({ success: false, message: '草稿状态不可作废，请直接删除' });
+    }
+
+    // 权限：采购经理只能作废本部门、采购员只能作废自己创建的
+    if (req.user.role === ROLES.PURCHASE_STAFF && existing.creatorId !== (req.user.employeeId || req.user.userId)) {
+      return res.status(403).json({ success: false, message: '您只能作废自己创建的采购计划' });
+    }
+    if (req.user.role === ROLES.PURCHASE_MANAGER && existing.departmentId && existing.departmentId !== req.user.departmentId) {
+      return res.status(403).json({ success: false, message: '您只能作废本部门的采购计划' });
+    }
+
+    const plan = await prisma.purchasePlan.update({
+      where: { id: req.params.id },
+      data: { status: 'CANCELLED' },
+    });
+    res.json({ success: true, data: plan, message: '采购计划已作废' });
+  } catch (err) { next(err); }
+});
+
 // 删除（仅DRAFT，数据隔离：PURCHASE_MANAGER只能删本部门，PURCHASE_STAFF只能删自己创建的草稿父计划）
 router.delete('/plans/:id', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_MANAGER), async (req, res, next) => {
   try {
@@ -874,15 +909,18 @@ router.post('/plans/:id/allocate', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_M
     if (parentPlan.status !== 'APPROVED') return res.status(400).json({ success: false, message: '仅已批准状态可分配' });
     if (parentPlan.parentPlanId) return res.status(400).json({ success: false, message: '子计划不可再次分配' });
 
-    // 检查是否已分配过
-    const existingChildren = await prisma.purchasePlan.count({ where: { parentPlanId: parentId } });
-    if (existingChildren > 0) return res.status(400).json({ success: false, message: '该计划已分配，不可重复分配' });
+    // 检查是否有未分配的明细
+    const unallocatedItems = parentPlan.items.filter((it) => !it.allocated);
+    if (unallocatedItems.length === 0) {
+      return res.status(400).json({ success: false, message: '该计划的所有明细已全部分配完毕' });
+    }
+    const isReAllocation = parentPlan.items.some((it) => it.allocated); // 是否为补分配
 
     // 2. 获取所有采购员分配记录（含物料绑定）
     const assignments = await prisma.purchaserAssignment.findMany({
       where: { status: 'ACTIVE' },
       include: {
-        user: { select: { id: true, username: true, employee: { select: { name: true, departmentId: true } } } },
+        employee: { select: { id: true, name: true, empNo: true, departmentId: true } },
         materials: { include: { material: { select: { id: true } } } },
       },
     });
@@ -892,26 +930,26 @@ router.post('/plans/:id/allocate', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_M
     }
 
     // 3. 按采购员分组物料
-    // 构建 materialId -> [userId] 映射
-    const materialToUsers = {};
+    // 构建 materialId -> [assignment] 映射
+    const materialToEmployees = {};
     for (const assignment of assignments) {
       for (const pm of assignment.materials) {
-        if (!materialToUsers[pm.materialId]) materialToUsers[pm.materialId] = [];
-        materialToUsers[pm.materialId].push(assignment);
+        if (!materialToEmployees[pm.materialId]) materialToEmployees[pm.materialId] = [];
+        materialToEmployees[pm.materialId].push(assignment);
       }
     }
 
-    // 按采购员聚合明细
-    const userItemsMap = {}; // userId -> [{ item, assignment }]
+    // 按采购员聚合明细（key 仍是 employeeId，因为这是业务维度）
+    const employeeItemsMap = {}; // employeeId -> [{ item, assignment }]
     const unassignedItems = [];
 
-    for (const item of parentPlan.items) {
-      const matchedAssignments = materialToUsers[item.materialId];
+    for (const item of unallocatedItems) {
+      const matchedAssignments = materialToEmployees[item.materialId];
       if (matchedAssignments && matchedAssignments.length > 0) {
         // 多个采购员负责同一物料时，每个采购员都分配到该物料明细
         for (const assignment of matchedAssignments) {
-          if (!userItemsMap[assignment.userId]) userItemsMap[assignment.userId] = { assignment, items: [] };
-          userItemsMap[assignment.userId].items.push(item);
+          if (!employeeItemsMap[assignment.employeeId]) employeeItemsMap[assignment.employeeId] = { assignment, items: [] };
+          employeeItemsMap[assignment.employeeId].items.push(item);
         }
       } else {
         unassignedItems.push(item);
@@ -919,12 +957,21 @@ router.post('/plans/:id/allocate', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_M
     }
 
     // 4. 为每个采购员创建子采购计划（每个子计划单独 try-catch，避免一个失败全部回滚）
-    let seq = 1;
+    // 补分配时 seq 必须从已存在的子计划最大编号 + 1 开始，否则会与已存在的子计划编号冲突
+    const existingChildren = await prisma.purchasePlan.findMany({
+      where: { parentPlanId: parentId },
+      select: { planNo: true },
+    });
+    let seq = existingChildren.reduce((max, c) => {
+      const m = c.planNo.match(/-(\d+)$/);
+      const n = m ? parseInt(m[1], 10) : 0;
+      return Math.max(max, n);
+    }, 0) + 1;
     const createdChildren = [];
-    const failedUsers = [];
+    const failedEmployees = [];
     const assignedItemIds = []; // 成功分配到子计划的父明细 ID
 
-    for (const [userId, { assignment, items }] of Object.entries(userItemsMap)) {
+    for (const [employeeId, { assignment, items }] of Object.entries(employeeItemsMap)) {
       const childPlanNo = `${parentPlan.planNo}-${String(seq).padStart(2, '0')}`;
       seq++;
 
@@ -932,16 +979,16 @@ router.post('/plans/:id/allocate', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_M
         const childPlan = await prisma.purchasePlan.create({
           data: {
             planNo: childPlanNo,
-            title: `${parentPlan.title}（${assignment.user.employee?.name || assignment.user.username}）`,
+            title: `${parentPlan.title}（${assignment.employee.name}）`,
             planType: parentPlan.planType,
             periodStart: parentPlan.periodStart,
             periodEnd: parentPlan.periodEnd,
-            departmentId: assignment.user.employee?.departmentId || parentPlan.departmentId,
+            departmentId: assignment.employee.departmentId || parentPlan.departmentId,
             priceDate: new Date(), // 子计划单据日期取当前系统日期，不继承父计划
             status: 'APPROVED',
             creatorId: parentPlan.creatorId,
             parentPlanId: parentId,
-            assigneeId: userId,
+            assigneeId: employeeId,
             approvedAt: new Date(),
             publishedAt: new Date(),
             remark: `由父计划 ${parentPlan.planNo} 自动分配`,
@@ -957,7 +1004,7 @@ router.post('/plans/:id/allocate', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_M
             },
           },
           include: {
-            assignee: { select: { username: true, employee: { select: { name: true } } } },
+            assignee: { select: { name: true } },
             _count: { select: { items: true } },
           },
         });
@@ -966,14 +1013,14 @@ router.post('/plans/:id/allocate', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_M
         // 记录成功分配的父明细 ID
         assignedItemIds.push(...items.map((it) => it.id));
       } catch (createErr) {
-        console.error('[订单分配] 创建子计划失败', { userId, planNo: childPlanNo, error: createErr.message });
-        failedUsers.push({ userId, name: assignment.user.employee?.name || assignment.user.username, reason: createErr.message });
+        console.error('[订单分配] 创建子计划失败', { employeeId, planNo: childPlanNo, error: createErr.message });
+        failedEmployees.push({ employeeId, name: assignment.employee.name, empNo: assignment.employee.empNo, reason: createErr.message });
       }
     }
 
     // 全部失败则返回错误
-    if (createdChildren.length === 0 && failedUsers.length > 0) {
-      return res.status(500).json({ success: false, message: '子计划创建失败：' + failedUsers[0].reason });
+    if (createdChildren.length === 0 && failedEmployees.length > 0) {
+      return res.status(500).json({ success: false, message: '子计划创建失败：' + failedEmployees[0].reason });
     }
 
     // 部分成功时也继续（已创建的保留），在消息中提示失败的
@@ -982,17 +1029,18 @@ router.post('/plans/:id/allocate', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_M
       data: { publishedAt: new Date() },
     });
 
-    // 将已成功分配到子计划的父明细标记为 forwarded，使其从父计划列表/明细中隐藏
+    // 将已成功分配到子计划的父明细标记为 allocated
     if (assignedItemIds.length > 0) {
       await prisma.purchasePlanItem.updateMany({
         where: { id: { in: assignedItemIds } },
-        data: { forwarded: true },
+        data: { allocated: true },
       });
     }
 
     // 返回精简数据，避免 Prisma Decimal 等类型序列化问题
-    let msg = `分配成功：生成 ${createdChildren.length} 个子采购计划`;
-    if (failedUsers.length > 0) msg += `，${failedUsers.length} 个采购员分配失败`;
+    const action = isReAllocation ? '补分配' : '分配';
+    let msg = `${action}成功：生成 ${createdChildren.length} 个子采购计划`;
+    if (failedEmployees.length > 0) msg += `，${failedEmployees.length} 个采购员分配失败`;
     if (unassignedItems.length > 0) msg += `，${unassignedItems.length} 个物料未匹配到采购员`;
     res.json({
       success: true,
@@ -1003,10 +1051,14 @@ router.post('/plans/:id/allocate', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_M
           planNo: c.planNo,
           title: c.title,
           status: c.status,
-          assigneeName: c.assignee?.employee?.name || c.assignee?.username || '-',
+          assigneeName: c.assignee?.name || '-',
           itemCount: c._count?.items || 0,
         })),
         unassignedMaterials: unassignedItems.map((it) => ({ id: it.materialId, code: it.material?.code, name: it.material?.name })),
+        failedEmployees: failedEmployees.length > 0 ? failedEmployees : undefined,
+        isReAllocation,
+        allocatedCount: assignedItemIds.length,
+        unallocatedRemaining: unassignedItems.length,
       },
     });
   } catch (err) { next(err); }
@@ -1018,12 +1070,12 @@ router.post('/plans/:id/allocate', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_M
 router.post('/plans/:id/forward', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_MANAGER, ROLES.PURCHASE_STAFF), async (req, res, next) => {
   try {
     const sourceId = req.params.id;
-    const { itemIds, targetUserId } = req.body;
+    const { itemIds, targetEmployeeId } = req.body;
 
     if (!itemIds || !Array.isArray(itemIds) || itemIds.length === 0) {
       return res.status(400).json({ success: false, message: '请至少选择一条明细' });
     }
-    if (!targetUserId) {
+    if (!targetEmployeeId) {
       return res.status(400).json({ success: false, message: '请选择目标采购员' });
     }
 
@@ -1036,7 +1088,7 @@ router.post('/plans/:id/forward', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_MA
     if (req.user.role === ROLES.PURCHASE_MANAGER && sourcePlanForAuth.departmentId !== req.user.departmentId) {
       return res.status(403).json({ success: false, message: '您只能转发本部门的采购计划' });
     }
-    if (req.user.role === ROLES.PURCHASE_STAFF && sourcePlanForAuth.assigneeId !== req.user.userId) {
+    if (req.user.role === ROLES.PURCHASE_STAFF && sourcePlanForAuth.assigneeId !== (req.user.employeeId || req.user.userId)) {
       return res.status(403).json({ success: false, message: '您只能转发分配给自己的子计划' });
     }
 
@@ -1058,16 +1110,15 @@ router.post('/plans/:id/forward', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_MA
       return res.status(400).json({ success: false, message: '选中的明细不存在或已转发' });
     }
 
-    // 查询目标用户
-    const targetUser = await prisma.user.findUnique({
-      where: { id: targetUserId },
-      select: { id: true, username: true, employee: { select: { name: true, departmentId: true } } },
+    // 查询目标员工（直接查 Employee，不依赖 User）
+    const targetEmployee = await prisma.employee.findUnique({
+      where: { id: targetEmployeeId },
+      select: { id: true, name: true, empNo: true, departmentId: true },
     });
-    if (!targetUser) return res.status(400).json({ success: false, message: '目标采购员不存在' });
+    if (!targetEmployee) return res.status(400).json({ success: false, message: '目标采购员不存在' });
 
     const fromName = req.user.name || req.user.userId;
-    const toName = targetUser.employee?.name || targetUser.username;
-    const forwardRemark = `由${fromName}转发给${toName}`;
+    const forwardRemark = `由${fromName}转发给${targetEmployee.name}`;
 
     // 生成新计划编号
     const newPlanNo = genNo('PP');
@@ -1081,11 +1132,11 @@ router.post('/plans/:id/forward', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_MA
         priceDate: new Date(),
         periodStart: sourcePlan.periodStart,
         periodEnd: sourcePlan.periodEnd,
-        departmentId: targetUser.employee?.departmentId || sourcePlan.departmentId,
+        departmentId: targetEmployee.departmentId || sourcePlan.departmentId,
         status: 'APPROVED',
         creatorId: req.user.employeeId || req.user.userId,
         parentPlanId: sourceId,
-        assigneeId: targetUserId,
+        assigneeId: targetEmployeeId,
         approvedAt: new Date(),
         publishedAt: new Date(),
         remark: forwardRemark,
@@ -1101,7 +1152,7 @@ router.post('/plans/:id/forward', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_MA
         },
       },
       include: {
-        assignee: { select: { username: true, employee: { select: { name: true } } } },
+        assignee: { select: { name: true } },
         items: { include: { material: { select: { code: true, name: true } } } },
       },
     });
@@ -1114,12 +1165,12 @@ router.post('/plans/:id/forward', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_MA
 
     res.json({
       success: true,
-      message: `转发成功：已将 ${selectedItems.length} 条明细转发给 ${toName}`,
+      message: `转发成功：已将 ${selectedItems.length} 条明细转发给 ${targetEmployee.name}`,
       data: {
         id: newPlan.id,
         planNo: newPlan.planNo,
         title: newPlan.title,
-        assigneeName: newPlan.assignee?.employee?.name || newPlan.assignee?.username,
+        assigneeName: newPlan.assignee?.name,
         itemCount: newPlan.items.length,
         remark: forwardRemark,
       },
@@ -1166,7 +1217,7 @@ router.get('/orders/available-plans', async (req, res, next) => {
     const plans = await prisma.purchasePlan.findMany({
       where,
       include: {
-        assignee: { select: { id: true, username: true, employee: { select: { name: true } } } },
+        assignee: { select: { id: true, name: true, empNo: true } },
         items: {
           where: { forwarded: false },
           include: {
@@ -1216,6 +1267,9 @@ router.get('/orders', async (req, res, next) => {
   try {
     const { page = 1, pageSize = 20, keyword = '', status = '', supplierId = '', warehouseId = '', dateStart = '', dateEnd = '' } = req.query;
     const where = {};
+    // 组织过滤：当前组织 + 未分配组织的旧记录（防御性兼容）
+    if (req.orgCode) where.orgCode = req.orgCode;
+
     if (keyword) {
       // 关联搜索：订单编号 + 供应商名称
       where.OR = [
@@ -1348,6 +1402,7 @@ router.post('/orders', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_STAFF, ROLES.
     const order = await prisma.purchaseOrder.create({
       data: {
         orderNo,
+        orgCode: req.orgCode || null,  // 创建时锁定组织
         supplierId,
         purchasePlanId,
         purchasePlanItemId: firstPlanItemId || null,
@@ -1547,6 +1602,7 @@ router.put('/orders/:id/status', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_MAN
           receiptNo,
           purchaseOrderId: order.id,
           warehouseId: order.warehouseId,
+          orgCode: order.orgCode,
           materialId: null,
           receiptDate: null,
           receivedQty: 0,
@@ -1609,6 +1665,8 @@ router.get('/receipts', async (req, res, next) => {
   try {
     const { page = 1, pageSize = 20, keyword = '', status = '', orderId = '', batchNo = '', supplierId = '', startDate = '', endDate = '' } = req.query;
     const where = {};
+    // 组织过滤：当前组织
+    if (req.orgCode) where.orgCode = req.orgCode;
     if (keyword) where.OR = [{ receiptNo: { contains: keyword } }];
     if (status) where.status = status;
     if (orderId) where.purchaseOrderId = orderId;
@@ -1713,6 +1771,7 @@ router.post('/receipts', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_STAFF, ROLE
     const receipt = await prisma.purchaseReceipt.create({
       data: {
         receiptNo,
+        orgCode: req.orgCode || null,  // 创建时锁定组织
         purchaseOrderId,
         warehouseId,
         locationId: locationId || null,
@@ -1947,44 +2006,22 @@ function toKingdeeUnit(scmUnit) {
 /**
  * 异步推送采购入库单到金蝶（不阻塞用户响应）
  */
-async function syncReceiptToKingdee(receiptId) {
-  const receipt = await prisma.purchaseReceipt.findUnique({
-    where: { id: receiptId },
-    include: {
-      purchaseOrder: { include: { supplier: true } },
-      warehouse: true,
-      items: { include: { material: true } },
-    },
-  });
-
-  if (!receipt || receipt.status !== 'CONFIRMED') return;
-
+/**
+ * 推送入库单到金蝶（纯函数，不更新 SCM 入库单状态，由调用方决定）
+ * @returns {{ success: boolean, poNo?: string, inboundNo?: string, error?: string }}
+ */
+async function pushToKingdee({ supplierCode, warehouseCode, date, entries, orgCodeParam, receiveSendTypeId }) {
   try {
-    const adapter = getKingdeeAdapter();
-    const supplierCode = receipt.purchaseOrder?.supplier?.code;
-    const warehouseCode = receipt.warehouse?.code;
-    const date = receipt.receiptDate ? new Date(receipt.receiptDate).toISOString().slice(0, 10) : undefined;
-
     if (!supplierCode || !warehouseCode) {
-      throw new Error('供应商或仓库金蝶编码缺失');
+      return { success: false, error: '供应商或仓库金蝶编码缺失' };
     }
-
-    // 构建金蝶 entries（一个SCM入库单可能有多个明细行）
-    const entries = receipt.items.map(item => ({
-      materialCode: item.material?.code,
-      qty: item.receivedQty,
-      price: Number(item.unitPrice),
-      unitCode: toKingdeeUnit(item.material?.purchaseUnit),
-      warehouseCode,
-      note: `SCM入库单${receipt.receiptNo}`,
-    }));
-
     if (!entries.length || entries.some(e => !e.materialCode)) {
-      throw new Error('物料金蝶编码缺失');
+      return { success: false, error: '物料金蝶编码缺失' };
     }
 
-    // 从仓库编码推导采购/库存组织（金蝶仓库编码前5位=组织编号）
-    const orgCode = warehouseCode?.length >= 5 ? warehouseCode.substring(0, 5) : '10001';
+    const adapter = getKingdeeAdapter();
+    // 显式传入的组织编码优先，否则从仓库编码推导（兼容旧逻辑）
+    const orgCode = orgCodeParam || (warehouseCode?.length >= 5 ? warehouseCode.substring(0, 5) : '10001');
 
     // Step 1: 创建金蝶采购订单
     const poResult = await adapter.createPurchaseOrder({
@@ -1992,9 +2029,9 @@ async function syncReceiptToKingdee(receiptId) {
       date,
       entries,
       purchaseOrgCode: orgCode,
+      receiveSendTypeId,
     });
-
-    if (!poResult.success) throw new Error(poResult.error || '采购订单创建失败');
+    if (!poResult.success) return { success: false, error: poResult.error || '采购订单创建失败' };
 
     // Step 2: 创建金蝶采购入库单
     const inboundResult = await adapter.createInboundReceipt({
@@ -2003,28 +2040,66 @@ async function syncReceiptToKingdee(receiptId) {
       entries,
       sourceBillNo: poResult.billNo,
       stockOrgCode: orgCode,
+      receiveSendTypeId,
     });
+    if (!inboundResult.success) return { success: false, error: inboundResult.error || '入库单创建失败' };
 
-    if (!inboundResult.success) throw new Error(inboundResult.error || '入库单创建失败');
+    return { success: true, poNo: poResult.billNo, inboundNo: inboundResult.billNo };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
 
-    // Step 3: 写回 SCM
+/**
+ * 重试金蝶同步（用于已确认入库但金蝶推送失败的入库单）
+ */
+async function retrySyncReceiptToKingdee(receiptId) {
+  const receipt = await prisma.purchaseReceipt.findUnique({
+    where: { id: receiptId },
+    include: {
+      purchaseOrder: { include: { supplier: true } },
+      warehouse: true,
+      items: { include: { material: true } },
+    },
+  });
+  if (!receipt) return { success: false, error: '入库单不存在' };
+  if (receipt.status !== 'CONFIRMED') return { success: false, error: '入库单未确认' };
+
+  const supplierCode = receipt.purchaseOrder?.supplier?.code;
+  const warehouseCode = receipt.warehouse?.code;
+  const date = receipt.receiptDate ? new Date(receipt.receiptDate).toISOString().slice(0, 10) : undefined;
+
+  const entries = receipt.items.map(item => ({
+    materialCode: item.material?.code,
+    qty: item.receivedQty,
+    price: Number(item.unitPrice),
+    unitCode: toKingdeeUnit(item.material?.purchaseUnit),
+    warehouseCode,
+    note: `SCM入库单${receipt.receiptNo}`,
+  }));
+
+  const result = await pushToKingdee({ supplierCode, warehouseCode, date, entries, orgCodeParam: receipt.orgCode, receiveSendTypeId: receipt.receiveSendTypeId });
+
+  if (result.success) {
     await prisma.purchaseReceipt.update({
       where: { id: receiptId },
       data: {
-        kingdeeOrderNo: poResult.billNo,
-        kingdeeInboundNo: inboundResult.billNo,
         kingdeeSyncStatus: 'SYNCED',
+        kingdeeSyncMessage: null,
+        kingdeeOrderNo: result.poNo,
+        kingdeeInboundNo: result.inboundNo,
       },
     });
-
-    console.log(`[金蝶] 推送成功: 入库单=${receipt.receiptNo}, 采购订单=${poResult.billNo}, 入库单=${inboundResult.billNo}`);
-  } catch (err) {
-    console.error(`[金蝶] 推送失败: 入库单=${receipt.receiptNo}, 错误=${err.message}`);
+    console.log(`[金蝶] 重试推送成功: 入库单=${receipt.receiptNo}, 采购订单=${result.poNo}, 入库单=${result.inboundNo}`);
+  } else {
     await prisma.purchaseReceipt.update({
       where: { id: receiptId },
-      data: { kingdeeSyncStatus: 'FAILED' },
+      data: { kingdeeSyncStatus: 'FAILED', kingdeeSyncMessage: result.error },
     }).catch(() => {});
+    console.error(`[金蝶] 重试推送失败: 入库单=${receipt.receiptNo}, 错误=${result.error}`);
   }
+
+  return result;
 }
 
 const handleConfirmReceipt = async (req, res, next) => { try {
@@ -2032,11 +2107,18 @@ const handleConfirmReceipt = async (req, res, next) => { try {
       where: { id: req.params.id },
       include: {
         purchaseOrder: { include: { supplier: true } },
+        warehouse: true,
         items: { include: { material: true, orderItem: true } },
       },
     });
     if (!receipt) return res.status(404).json({ success: false, message: '入库记录不存在' });
     if (receipt.status !== 'PENDING') return res.status(400).json({ success: false, message: '该入库单已确认，不可重复操作' });
+
+    // 0. 验证收发类别必填
+    const receiveSendTypeId = req.body.receiveSendTypeId;
+    if (!receiveSendTypeId) {
+      return res.status(400).json({ success: false, message: '请选择收发类别' });
+    }
 
     // 1. 解析前端提交的明细数据
     const itemsData = JSON.parse(req.body.items || '[]');
@@ -2062,7 +2144,46 @@ const handleConfirmReceipt = async (req, res, next) => { try {
       }
     }
 
-    // 4. 逐条执行入库联动
+    // 4. ★ 先同步推送到金蝶（阻塞等待，失败则不执行入库）
+    const supplierCode = receipt.purchaseOrder?.supplier?.code;
+    const warehouseCode = receipt.warehouse?.code;
+    const kingdeeEntries = itemsData.map(itemData => {
+      const receiptItem = receipt.items.find(i => i.id === itemData.id);
+      // 物料等级兜底：优先用入库明细 grade，回退到采购订单明细 grade
+      const gradeCode = receiptItem?.grade?.code || receiptItem?.orderItem?.grade?.code;
+      return {
+        materialCode: receiptItem?.material?.code,
+        qty: Number(itemData.receivedQty),
+        price: Number(receiptItem?.unitPrice || 0),
+        unitCode: toKingdeeUnit(receiptItem?.material?.purchaseUnit),
+        warehouseCode,
+        gradeCode,
+        note: `SCM入库单${receipt.receiptNo}`,
+      };
+    });
+
+    const date = receipt.receiptDate
+      ? new Date(receipt.receiptDate).toISOString().slice(0, 10)
+      : new Date().toISOString().slice(0, 10);
+
+    const kingdeeResult = await pushToKingdee({
+      supplierCode, warehouseCode, date, entries: kingdeeEntries, orgCodeParam: req.orgCode,
+      receiveSendTypeId,
+    });
+
+    if (!kingdeeResult.success) {
+      // 金蝶失败：入库单保持 PENDING 状态，记录失败原因
+      await prisma.purchaseReceipt.update({
+        where: { id: req.params.id },
+        data: { kingdeeSyncStatus: 'FAILED', kingdeeSyncMessage: kingdeeResult.error },
+      });
+      console.error(`[金蝶] 确认入库时推送失败: 入库单=${receipt.receiptNo}, 错误=${kingdeeResult.error}`);
+      return res.status(400).json({ success: false, message: `金蝶同步失败，未执行入库：${kingdeeResult.error}` });
+    }
+
+    console.log(`[金蝶] 确认入库时推送成功: 入库单=${receipt.receiptNo}, 采购订单=${kingdeeResult.poNo}, 入库单=${kingdeeResult.inboundNo}`);
+
+    // 5. 金蝶成功 → 逐条执行入库联动
     const batchNos = [];
     const apNos = [];
     const order = receipt.purchaseOrder;
@@ -2079,7 +2200,7 @@ const handleConfirmReceipt = async (req, res, next) => { try {
       const baseReceivedQty = Number(purchaseQtyToBase(receivedQty, _material));
       const baseUnitPrice = Number(purchaseUnitPriceToBase(Number(receiptItem.unitPrice), _material));
 
-      // 4a. 处理质检附件
+      // 5a. 处理质检附件
       let qcAttachment = receiptItem.qcAttachment;
       if (file) {
         if (qcAttachment) {
@@ -2089,7 +2210,7 @@ const handleConfirmReceipt = async (req, res, next) => { try {
         qcAttachment = `/uploads/qc/${file.filename}`;
       }
 
-      // 4b. 创建批次（receivedQty/remainingQty 用基准单位）
+      // 5b. 创建批次（receivedQty/remainingQty 用基准单位）
       const batchNo = genNo('B');
       const batch = await prisma.batch.create({
         data: {
@@ -2105,9 +2226,8 @@ const handleConfirmReceipt = async (req, res, next) => { try {
       });
       batchNos.push(batchNo);
 
-      // 4c. 更新明细：收货数量、附件、批次、状态、等级（receivedQty 保持采购单位用于合同参考）
+      // 5c. 更新明细：收货数量、附件、批次、状态、等级
       const totalAmount = receivedQty * Number(receiptItem.unitPrice);
-      // 自动从采购订单明细获取gradeId（如果前端没有传递）
       const finalGradeId = itemData.gradeId || receiptItem.orderItem?.gradeId || null;
       await prisma.purchaseReceiptItem.update({
         where: { id: itemData.id },
@@ -2122,7 +2242,7 @@ const handleConfirmReceipt = async (req, res, next) => { try {
         },
       });
 
-      // 4d. 更新库存（使用基准单位数量）
+      // 5d. 更新库存
       const inventoryWhere = { materialId_warehouseId: { materialId, warehouseId: _warehouseId } };
       await prisma.inventory.upsert({
         where: inventoryWhere,
@@ -2130,7 +2250,7 @@ const handleConfirmReceipt = async (req, res, next) => { try {
         update: { qty: { increment: baseReceivedQty } },
       });
 
-      // 4e. 创建库存移动记录（使用基准单位数量）
+      // 5e. 创建库存移动记录
       const movementNo = genNo('SM');
       await prisma.stockMovement.create({
         data: {
@@ -2150,7 +2270,7 @@ const handleConfirmReceipt = async (req, res, next) => { try {
         },
       });
 
-      // 4f. 创建批次追溯记录（使用基准单位数量）
+      // 5f. 创建批次追溯记录
       await prisma.batchTracking.create({
         data: {
           batchId: batch.id,
@@ -2164,7 +2284,7 @@ const handleConfirmReceipt = async (req, res, next) => { try {
         },
       });
 
-      // 4g. 更新物料最新入库价（转换为基准单位单价，用于成本价计算）
+      // 5g. 更新物料最新入库价
       await prisma.material.update({
         where: { id: materialId },
         data: {
@@ -2173,7 +2293,7 @@ const handleConfirmReceipt = async (req, res, next) => { try {
         },
       });
 
-      // 4h. 自动创建应付账款
+      // 5h. 自动创建应付账款
       const _taxRate = Number(receiptItem.taxRate) || 0;
       const _taxAmount = totalAmount * _taxRate / 100;
       const _grandTotal = totalAmount + _taxAmount;
@@ -2196,20 +2316,50 @@ const handleConfirmReceipt = async (req, res, next) => { try {
       apNos.push(apNo);
     }
 
-    // 5. 更新入库单状态为已确认
+    // 6. 更新入库单状态为已确认 + 金蝶已同步
     await prisma.purchaseReceipt.update({
       where: { id: req.params.id },
-      data: { status: 'CONFIRMED', receiptDate: new Date(), kingdeeSyncStatus: 'SYNCING' },
+      data: {
+        status: 'CONFIRMED',
+        orgCode: req.orgCode || null,
+        receiptDate: new Date(),
+        kingdeeSyncStatus: 'SYNCED',
+        kingdeeSyncMessage: null,
+        kingdeeOrderNo: kingdeeResult.poNo,
+        kingdeeInboundNo: kingdeeResult.inboundNo,
+        receiveSendTypeId,
+      },
     });
-
-    // 6. 异步推送到金蝶（不阻塞用户响应）
-    syncReceiptToKingdee(req.params.id);
 
     res.json({ success: true, data: { receiptNo: receipt.receiptNo, batchNos, apNos } });
   } catch (err) { next(err); }
 };
 
+// PUT: 更新入库单收发类别（确认入库前可选设置）
+router.put('/receipts/:id/receive-send-type', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_STAFF, ROLES.PURCHASE_MANAGER, ROLES.WAREHOUSE_STAFF), async (req, res, next) => {
+  try {
+    const { receiveSendTypeId } = req.body;
+    if (!receiveSendTypeId) return res.status(400).json({ success: false, message: '请选择收发类别' });
+    const receipt = await prisma.purchaseReceipt.findUnique({ where: { id: req.params.id } });
+    if (!receipt) return res.status(404).json({ success: false, message: '入库记录不存在' });
+    if (receipt.status !== 'PENDING') return res.status(400).json({ success: false, message: '该入库单已确认，不可修改' });
+    await prisma.purchaseReceipt.update({ where: { id: req.params.id }, data: { receiveSendTypeId } });
+    res.json({ success: true, message: '收发类别已更新' });
+  } catch (err) { next(err); }
+});
+
 // POST: 确认入库（带多文件上传，multer.any() 接收 file_<itemId> 字段）
 router.post('/receipts/:id/confirm', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_STAFF, ROLES.PURCHASE_MANAGER, ROLES.WAREHOUSE_STAFF), qcUpload.any(), handleConfirmReceipt);
+
+// POST: 重新同步金蝶（入库单已确认但金蝶推送失败时重试）
+router.post('/receipts/:id/retry-kingdee', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_STAFF, ROLES.PURCHASE_MANAGER, ROLES.WAREHOUSE_STAFF), async (req, res, next) => {
+  try {
+    const result = await retrySyncReceiptToKingdee(req.params.id);
+    if (!result.success) {
+      return res.status(400).json({ success: false, message: `金蝶同步失败：${result.error}` });
+    }
+    res.json({ success: true, data: { poNo: result.poNo, inboundNo: result.inboundNo }, message: '金蝶同步成功' });
+  } catch (err) { next(err); }
+});
 
 export default router;

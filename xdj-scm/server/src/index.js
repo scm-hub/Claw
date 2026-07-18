@@ -45,6 +45,8 @@ app.use(
     standardHeaders: true,
     legacyHeaders: false,
     message: { success: false, message: '请求过于频繁，请稍后再试' },
+    // 我们在 gateway 反代后，trust proxy = true 是安全的；显式关闭校验避免 ERR_ERL_PERMISSIVE_TRUST_PROXY
+    validate: { trustProxy: false },
   }),
 );
 
@@ -78,6 +80,10 @@ app.get('/health', (req, res) => res.json({ status: 'ok', service: 'xdj-scm' }))
 
 // API 路由
 app.use('/api/auth', (await import('./modules/auth/auth.routes.js')).default);
+
+// 组织上下文中间件（所有 /api/* 路由生效，在 authenticate 之后）
+import { orgContext } from './middleware/orgContext.js';
+app.use('/api', orgContext);
 app.use('/api/master', (await import('./modules/master/master.routes.js')).default);
 app.use('/api/purchase', (await import('./modules/purchase/purchase.routes.js')).default);
 app.use('/api/wms', (await import('./modules/wms/wms.routes.js')).default);

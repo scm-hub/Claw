@@ -289,7 +289,11 @@ export default function EmployeeForm() {
         setForm((prev) => ({ ...prev, gender: genderDigit % 2 === 1 ? 'MALE' : 'FEMALE' }));
       }
 
-      enqueueSnackbar('已自动识别出生日期、性别', { variant: 'info', autoHideDuration: 2000 });
+      enqueueSnackbar('已自动识别出生日期、性别、默认密码', { variant: 'info', autoHideDuration: 2000 });
+
+      // 身份证后6位自动填充为默认登录密码
+      const defaultPwd = val.slice(-6);
+      setForm((prev) => ({ ...prev, accountPassword: defaultPwd }));
     } else {
       setAutoAge('');
     }
@@ -918,16 +922,15 @@ export default function EmployeeForm() {
                 <Typography variant="subtitle1" fontWeight="bold" sx={{ mt: 3, mb: 1, color: 'primary.main' }}>账号信息</Typography>
                 <Divider sx={{ mb: 2 }} />
                 <Alert severity="info" sx={{ mb: 2 }}>
-                  新增员工后将自动开通系统登录账号，默认密码为 123456，默认角色为普通员工。账号权限请到平台权限管理中配置。
+                  新增员工后将自动开通系统登录账号，默认密码为身份证号后6位，默认角色为普通员工。账号权限请到平台权限管理中配置。
                 </Alert>
                 <Grid container spacing={2}>
                   <Grid item xs={12} md={4}>
                     <TextField
-                      fullWidth label="登录密码" type="text" margin="normal"
+                      fullWidth label="登录密码" margin="normal"
                       value={form.accountPassword}
-                      disabled
-                      helperText="系统默认密码，不可修改"
-                      sx={{ '& .MuiOutlinedInput-root': { backgroundColor: 'action.hover' } }}
+                      onChange={(e) => setForm({ ...form, accountPassword: e.target.value })}
+                      helperText="系统默认密码为身份证后6位，可手动修改"
                     />
                   </Grid>
                   <Grid item xs={12} md={4}>

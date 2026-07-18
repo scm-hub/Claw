@@ -2,8 +2,8 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-export const getDashboardStats = async (departmentFilter = null) => {
-  const empWhere = departmentFilter ? { departmentId: departmentFilter } : {};
+export const getDashboardStats = async (departmentIds = null) => {
+  const empWhere = departmentIds?.length > 0 ? { departmentId: { in: departmentIds } } : {};
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -31,13 +31,13 @@ export const getDashboardStats = async (departmentFilter = null) => {
     prisma.leave.count({
       where: {
         status: 'PENDING',
-        ...(departmentFilter ? { employee: { departmentId: departmentFilter } } : {}),
+        ...(departmentIds?.length > 0 ? { employee: { departmentId: { in: departmentIds } } } : {}),
       },
     }),
     prisma.attendance.count({
       where: {
         date: today,
-        ...(departmentFilter ? { employee: { departmentId: departmentFilter } } : {}),
+        ...(departmentIds?.length > 0 ? { employee: { departmentId: { in: departmentIds } } } : {}),
       },
     }),
     prisma.job.count({ where: { status: 'OPEN' } }),
@@ -110,7 +110,7 @@ export const getDashboardStats = async (departmentFilter = null) => {
     where: {
       endDate: { gte: today, lte: thirtyDaysLater },
       status: 'ACTIVE',
-      ...(departmentFilter ? { employee: { departmentId: departmentFilter } } : {}),
+      ...(departmentIds?.length > 0 ? { employee: { departmentId: { in: departmentIds } } } : {}),
     },
     include: {
       employee: { select: { id: true, name: true, employeeNo: true, department: { select: { name: true } } } },
@@ -134,7 +134,7 @@ export const getDashboardStats = async (departmentFilter = null) => {
   ]);
 
   // 部门分布
-  const deptWhere = departmentFilter ? { id: departmentFilter } : {};
+  const deptWhere = departmentIds?.length > 0 ? { id: { in: departmentIds } } : {};
   const deptStats = await prisma.department.findMany({
     where: deptWhere,
     include: { _count: { select: { employees: true } } },
@@ -184,7 +184,7 @@ export const getDashboardStats = async (departmentFilter = null) => {
     upcomingTrainings,
     trainingInProgress,
     // 部门
-    departmentFilter,
+    departmentIds,
     departmentDistribution: deptStats.map((d) => ({
       id: d.id,
       name: d.name,

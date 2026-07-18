@@ -3,7 +3,7 @@ import { authenticate, requireAdmin } from '../middleware/auth.js';
 import prisma from '../prisma.js';
 
 const router = Router();
-const HRMS_API_URL = process.env.HRMS_API_URL || 'http://localhost:4002';
+const HRMS_API_URL = process.env.HRMS_API_URL || 'http://localhost:14002';
 
 /**
  * 用户管理路由 — 优先从 portal_user 缓存读取，不足时从 HRMS API 代理
@@ -101,7 +101,60 @@ router.get('/', authenticate, requireAdmin, async (req, res, next) => {
       };
     });
 
-    // 5. 自动同步：将 HRMS 中还没在 portal_user 里的员工补写入缓存
+    // 5. 清理 stale 记录：删除 portal_user 中不在 HRMS 用户列表里的记录（保留 admin）
+    const hrmsEmails = hrmsUsers.map((hu) => (hu.email || '').toLowerCase());
+    const stalePortal = portalUsers.filter(
+      (pu) => pu.email !== 'admin@hrms.com' && !hrmsEmails.includes((pu.email || '').toLowerCase())
+    );
+    if (stalePortal.length > 0) {
+      const staleEmails = stalePortal.map((p) => p.email);
+      await prisma.userRole.deleteMany({ where: { userEmail: { in: staleEmails } } });
+      await prisma.portalUser.deleteMany({ where: { email: { in: staleEmails } } });
+      for (const pu of stalePortal) portalMap.delete((pu.email || '').toLowerCase());
+    }
+
+    // 5a. 系统超级管理员（admin@hrms.com）始终显示在首位，不受 HRMS 数据源限制
+    // 如果 admin 已从 HRMS 同步回来，先移除再添加，避免重复
+    const adminPortal = portalMap.get('admin@hrms.com');
+    if (adminPortal) {
+      const adminIdx = enrichedUsers.findIndex((u) => u.email === 'admin@hrms.com');
+      if (adminIdx >= 0) enrichedUsers.splice(adminIdx, 1);
+      const adminUserRoles = rolesMap.get('admin@hrms.com') || [];
+      enrichedUsers.unshift({
+        id: adminPortal.id,
+        email: 'admin@hrms.com',
+        name: adminPortal.name || 'admin@hrms.com',
+        employeeNo: adminPortal.employeeNo || '',
+        globalId: adminPortal.globalId || null,
+        departmentName: adminPortal.departmentName || '',
+        position: adminPortal.position || '',
+        phone: adminPortal.phone || '',
+        hrmsRole: adminPortal.hrmsRole || 'SUPER_ADMIN',
+        isActive: true,
+        roleNames: adminUserRoles.map((ur) => ur.role.name),
+        permissions: (() => {
+          const perms = {};
+          for (const ur of adminUserRoles) {
+            for (const perm of ur.role.permissions) {
+              if (!perms[perm.systemCode]) perms[perm.systemCode] = [];
+              if (!perms[perm.systemCode].includes(perm.moduleCode)) {
+                perms[perm.systemCode].push(perm.moduleCode);
+              }
+            }
+          }
+          return perms;
+        })(),
+        lastLoginAt: adminPortal.lastLoginAt || null,
+        employee: {
+          name: adminPortal.name || 'admin@hrms.com',
+          employeeNo: adminPortal.employeeNo || '',
+          department: { name: adminPortal.departmentName || '' },
+          email: 'admin@hrms.com',
+        },
+      });
+    }
+
+    // 6. 自动同步：将 HRMS 中还没在 portal_user 里的员工补写入缓存
     const newEmployees = hrmsUsers.filter((hu) => !portalMap.has((hu.email || '').toLowerCase()));
     if (newEmployees.length > 0) {
       await prisma.portalUser.createMany({
@@ -122,6 +175,37 @@ router.get('/', authenticate, requireAdmin, async (req, res, next) => {
         }),
         skipDuplicates: true,
       });
+    }
+
+    // 5a. 自动同步已有用户：将 portal_user 中与 HRMS 不一致的字段（工号/姓名/部门/岗位/状态）更新为 HRMS 数据
+    for (const hu of hrmsUsers) {
+      const emailKey = (hu.email || '').toLowerCase();
+      const cached = portalMap.get(emailKey);
+      if (!cached) continue;
+      const emp = hu.employee || {};
+      const hrmEmployeeNo = emp.employeeNo || hu.employeeNo || '';
+      const hrmName = emp.name || hu.name || hu.email;
+      const hrmDeptName = emp.department?.name || emp.departmentName || '';
+      const hrmPosition = emp.positionTitle || emp.position || '';
+      const hrmActive = !!(hu.status === 'ACTIVE' || emp.status === 'ACTIVE');
+      if (
+        cached.employeeNo !== hrmEmployeeNo ||
+        cached.name !== hrmName ||
+        cached.departmentName !== hrmDeptName ||
+        cached.position !== hrmPosition ||
+        cached.isActive !== hrmActive
+      ) {
+        await prisma.portalUser.update({
+          where: { id: cached.id },
+          data: {
+            employeeNo: hrmEmployeeNo,
+            name: hrmName,
+            departmentName: hrmDeptName,
+            position: hrmPosition,
+            isActive: hrmActive,
+          },
+        });
+      }
     }
 
     res.json({ success: true, data: enrichedUsers });

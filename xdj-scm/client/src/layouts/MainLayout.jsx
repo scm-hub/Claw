@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   AppBar, Box, Toolbar, Typography, Drawer, List, ListItemButton,
   ListItemIcon, ListItemText, Collapse, Avatar, Menu, MenuItem,
-  IconButton, Divider, Badge,
+  IconButton, Divider, Badge, FormControl, Select as MuiSelect,
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon, Category as CategoryIcon, ShoppingCart as PurchaseIcon,
@@ -16,6 +16,8 @@ import {
   Logout, Person, Menu as MenuIcon, Business, Print as PrintIcon, Route as RouteIcon, Shield as ShieldIcon,
 } from '@mui/icons-material';
 import { useAuthStore, ROLE_LABELS, hasModule } from '../store/authStore';
+import { setCurrentOrg, getCurrentOrg } from '../lib/api';
+import api from '../lib/api';
 
 const drawerWidth = 240;
 
@@ -24,8 +26,6 @@ const drawerWidth = 240;
 const menuGroups = [
   {
     label: '基础数据', icon: <CategoryIcon />, items: [
-      { path: '/master/material-grades', label: '物料等级管理', icon: <CategoryIcon />, module: 'master-material-grades' },
-      { path: '/master/material-groups', label: '产品组管理', icon: <CategoryIcon />, module: 'master-material-groups' },
       { path: '/master/materials', label: '产品管理', icon: <InventoryIcon />, module: 'master-materials' },
       { path: '/master/customers', label: '客户管理', icon: <PeopleIcon />, module: 'master-customers' },
       { path: '/master/suppliers', label: '供应商管理', icon: <Business />, module: 'master-suppliers' },
@@ -119,6 +119,36 @@ export default function MainLayout() {
   const location = useLocation();
   const { user, clearAuth } = useAuthStore();
   const [anchorEl, setAnchorEl] = useState(null);
+
+  // 组织切换
+  const [orgs, setOrgs] = useState([]);
+  const [currentOrg, setCurrentOrgState] = useState(getCurrentOrg());
+
+  useEffect(() => {
+    api.get('/master/organizations').then(res => {
+      const list = res.data || [];
+      setOrgs(list);
+      const codes = list.map(o => o.orgCode);
+      const saved = getCurrentOrg();
+      // 只有1个组织：始终自动选中（不管 localStorage 存了什么）
+      if (list.length === 1) {
+        setCurrentOrg(list[0].orgCode);
+        setCurrentOrgState(list[0].orgCode);
+      } else if (list.length > 1 && saved && !codes.includes(saved)) {
+        // 多个组织但已选的不在列表中：切到第一个
+        setCurrentOrg(list[0].orgCode);
+        setCurrentOrgState(list[0].orgCode);
+      }
+    }).catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleOrgChange = (e) => {
+    const orgCode = e.target.value;
+    setCurrentOrg(orgCode);
+    setCurrentOrgState(orgCode);
+    // 触发当前页面刷新（通过 key 变化实现）
+    window.location.reload();
+  };
   const [openGroups, setOpenGroups] = useState(() => {
     const currentGroup = menuGroups.find((g) =>
       g.items.some((item) => location.pathname.startsWith(item.path))
@@ -220,6 +250,26 @@ export default function MainLayout() {
             <Typography variant="h6" sx={{ flexGrow: 1 }}>
               鲜当家食用菌供应链管理系统
             </Typography>
+            {/* 组织选择 */}
+            {orgs.length > 0 && (
+              <FormControl size="small" sx={{ minWidth: 200, mr: 2 }}>
+                <MuiSelect
+                  value={currentOrg}
+                  onChange={handleOrgChange}
+                  displayEmpty
+                  sx={{
+                    color: 'white',
+                    '.MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.3)' },
+                    '.MuiSvgIcon-root': { color: 'rgba(255,255,255,0.7)' },
+                  }}
+                  startAdornment={<Business sx={{ mr: 1, color: 'rgba(255,255,255,0.7)', fontSize: 20 }} />}
+                >
+                  {orgs.map(o => (
+                    <MenuItem key={o.orgCode} value={o.orgCode}>{o.orgName}</MenuItem>
+                  ))}
+                </MuiSelect>
+              </FormControl>
+            )}
             <IconButton color="inherit" onClick={(e) => setAnchorEl(e.currentTarget)}>
               <Badge badgeContent={0} color="error">
                 <Person />

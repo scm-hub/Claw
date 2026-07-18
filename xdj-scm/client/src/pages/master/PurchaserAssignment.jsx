@@ -70,7 +70,7 @@ export default function PurchaserAssignment() {
     try {
       const [userRes, matRes] = await Promise.all([
         api.get('/master/purchaser-users'),
-        api.get('/master/materials', { params: { pageSize: 9999, status: 'ACTIVE' } }),
+        api.get('/master/materials', { params: { pageSize: 9999, status: 'ACTIVE', purchaseComplete: '1', purchaseOrActive: '1' } }),
       ]);
       setUsers(userRes.data || []);
       setMaterials(matRes.data?.list || []);
@@ -85,11 +85,11 @@ export default function PurchaserAssignment() {
     try {
       const [userRes, matRes] = await Promise.all([
         api.get('/master/purchaser-users'),
-        api.get('/master/materials', { params: { pageSize: 9999, status: 'ACTIVE' } }),
+        api.get('/master/materials', { params: { pageSize: 9999, status: 'ACTIVE', purchaseComplete: '1', purchaseOrActive: '1' } }),
       ]);
       setUsers(userRes.data || []);
       setMaterials(matRes.data?.list || []);
-      setSelectedUser(userRes.data?.find((u) => u.id === row.userId) || null);
+      setSelectedUser(userRes.data?.find((u) => (u.employeeId || u.id) === row.employeeId) || null);
       setSelectedMaterials(row.materials?.map((m) => m.material) || []);
     } catch (err) { console.error(err); }
   };
@@ -98,10 +98,13 @@ export default function PurchaserAssignment() {
   const handleSave = async () => {
     if (!selectedUser) { alert('请选择采购员'); return; }
     if (selectedMaterials.length === 0) { alert('请至少选择一个物料'); return; }
+    // 业务语义：采购员以 employeeId 为单位（与是否登录过 SCM 无关）
+    const employeeId = selectedUser.employeeId || selectedUser.id;
+    if (!employeeId) { alert('该员工数据异常，无法分配'); return; }
     setSaving(true);
     try {
       const payload = {
-        userId: selectedUser.id,
+        employeeId,
         materialIds: selectedMaterials.map((m) => m.id),
         remark,
       };
@@ -357,11 +360,11 @@ export default function PurchaserAssignment() {
                         {isOpen ? <KeyboardArrowUp fontSize="small" /> : <KeyboardArrowDown fontSize="small" />}
                       </IconButton>
                     </TableCell>
-                    <TableCell sx={{ fontWeight: isOpen ? 'bold' : 'normal' }}>{row.user?.employee?.name || '-'}</TableCell>
+                    <TableCell sx={{ fontWeight: isOpen ? 'bold' : 'normal' }}>{row.employee?.name || '-'}</TableCell>
                     <TableCell>
-                      <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: isOpen ? 700 : 600 }}>{row.user?.username || '-'}</Typography>
+                      <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: isOpen ? 700 : 600 }}>{row.employee?.empNo || '-'}</Typography>
                     </TableCell>
-                    <TableCell>{row.user?.employee?.department?.name || '-'}</TableCell>
+                    <TableCell>{row.employee?.department?.name || '-'}</TableCell>
                     <TableCell align="center">
                       <Chip label={row.materials?.length || 0} size="small" color="primary" variant="outlined" />
                     </TableCell>
@@ -452,11 +455,12 @@ export default function PurchaserAssignment() {
               value={selectedUser}
               onChange={(e, val) => setSelectedUser(val)}
               getOptionLabel={(opt) => {
-                const empName = opt.employee?.name || '';
-                const dept = opt.employee?.department?.name || '';
-                return `${opt.username}${empName ? ' - ' + empName : ''}${dept ? ' (' + dept + ')' : ''}`;
+                const no = opt.employeeNo || '';
+                const empName = opt.name || '';
+                const dept = opt.department || '';
+                return `${no}${empName ? ' - ' + empName : ''}${dept ? ' (' + dept + ')' : ''}`;
               }}
-              renderInput={(params) => <TextField {...params} size="small" placeholder="搜索用户名或姓名" />}
+              renderInput={(params) => <TextField {...params} size="small" label="选择采购员" placeholder="搜索工号或姓名（拥有采购管理模块权限的用户）" />}
               isOptionEqualToValue={(opt, val) => opt.id === val?.id}
               sx={{ mb: 2 }}
             />

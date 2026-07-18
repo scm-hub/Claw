@@ -7,9 +7,10 @@ import {
 } from '@mui/material';
 import {
   Add, Edit, Delete, Search, RestartAlt, FilterList, Business, CheckCircle,
-  Block, ToggleOn, ToggleOff,
+  Block, ToggleOn, ToggleOff, Map as MapIcon, UploadFile, Description, Download, Close,
 } from '@mui/icons-material';
 import api from '../../lib/api';
+import MapPicker from '../../components/MapPicker';
 
 const STATUS_MAP = { ACTIVE: '启用', INACTIVE: '停用' };
 
@@ -23,10 +24,29 @@ export default function SupplierList() {
   const [dialog, setDialog] = useState({ open: false, data: null });
   const [form, setForm] = useState({});
   const [refDialog, setRefDialog] = useState({ open: false, message: '', references: [] });
+  // 地图选点
+  const [mapOpen, setMapOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
   const [formErrors, setFormErrors] = useState({});
   const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0 });
   const [loading, setLoading] = useState(false);
+  // 附件预览
+  const [previewDialog, setPreviewDialog] = useState({ open: false, url: '', name: '' });
+
+  const getAttachmentUrl = (path) => {
+    if (!path || path.startsWith('http')) return path;
+    return path.startsWith('/') ? `/scm${path}` : path;
+  };
+
+  const isImage = (url) => /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(url);
+  const isPdf = (url) => /\.pdf$/i.test(url);
+
+  const handlePreviewAttachment = (attachmentPath) => {
+    const fullUrl = getAttachmentUrl(attachmentPath);
+    const fileName = attachmentPath.split('/').pop();
+    setPreviewDialog({ open: true, url: fullUrl, name: fileName });
+  };
 
   // 金蝶供应商下拉搜索
   const [kdSuppliers, setKdSuppliers] = useState([]);
@@ -95,7 +115,8 @@ export default function SupplierList() {
     setKdSupplierInput(data?.name || '');
     setForm(data || {
       name: '', contactPerson: '', contactPhone: '', address: '',
-      bankAccount: '', status: 'ACTIVE',
+      bankAccount: '', bankName: '', businessLicenseFile: '',
+      wechatExternalUserId: '', status: 'ACTIVE',
     });
   };
 
@@ -106,6 +127,9 @@ export default function SupplierList() {
     if (!form.contactPerson?.trim()) errors.contactPerson = '必填';
     if (!form.contactPhone?.trim()) errors.contactPhone = '必填';
     if (!form.bankAccount?.trim()) errors.bankAccount = '必填';
+    if (!form.bankName?.trim()) errors.bankName = '必填';
+    if (!form.address?.trim()) errors.address = '必填';
+    if (!form.businessLicenseFile?.trim()) errors.businessLicenseFile = '必填';
     if (Object.keys(errors).length > 0) { setFormErrors(errors); return; }
     setFormErrors({});
 
@@ -444,6 +468,12 @@ export default function SupplierList() {
                 error={!!formErrors.bankAccount} helperText={formErrors.bankAccount || ''} />
             </Grid>
             <Grid item xs={6}>
+              <TextField fullWidth size="small" label="开户行 *" value={form.bankName || ''}
+                onChange={(e) => { setForm({ ...form, bankName: e.target.value }); setFormErrors({ ...formErrors, bankName: undefined }); }}
+                error={!!formErrors.bankName} helperText={formErrors.bankName || ''}
+                placeholder="如：中国工商银行淄博分行" />
+            </Grid>
+            <Grid item xs={6}>
               <TextField select fullWidth size="small" label="状态" value={form.status || 'ACTIVE'}
                 onChange={(e) => setForm({ ...form, status: e.target.value })}>
                 <MenuItem value="ACTIVE">启用</MenuItem>
@@ -451,8 +481,63 @@ export default function SupplierList() {
               </TextField>
             </Grid>
             <Grid item xs={12}>
-              <TextField fullWidth size="small" label="地址" value={form.address || ''}
-                onChange={(e) => setForm({ ...form, address: e.target.value })} />
+              <TextField fullWidth size="small" label="地址 *" value={form.address || ''}
+                onChange={(e) => { setForm({ ...form, address: e.target.value }); setFormErrors({ ...formErrors, address: undefined }); }}
+                placeholder="点击右侧地图图标选点，或手动输入"
+                error={!!formErrors.address} helperText={formErrors.address || ''}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <Tooltip title="在地图上选择地址">
+                        <IconButton size="small" onClick={() => setMapOpen(true)} edge="end">
+                          <MapIcon fontSize="small" color="primary" />
+                        </IconButton>
+                      </Tooltip>
+                    </InputAdornment>
+                  ),
+                }} />
+            </Grid>
+            <Grid item xs={12}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <TextField fullWidth size="small" label="营业执照附件 *" value={form.businessLicenseFile || ''}
+                  InputProps={{ readOnly: true }}
+                  placeholder="点击右侧按钮上传"
+                  error={!!formErrors.businessLicenseFile} helperText={formErrors.businessLicenseFile || ''}
+                  sx={{ '& .MuiInputBase-input': { textOverflow: 'ellipsis' } }} />
+                <input type="file" id="license-upload" accept="image/*,.pdf" style={{ display: 'none' }}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setUploading(true);
+                    try {
+                      const fd = new FormData();
+                      fd.append('file', file);
+                      const res = await api.post('/master/suppliers/upload-license', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+                      setForm({ ...form, businessLicenseFile: res.data.url });
+                    } catch (err) { alert('上传失败：' + (err.data?.message || err.message)); }
+                    finally { setUploading(false); e.target.value = ''; }
+                  }} />
+                <Button variant="outlined" size="small" component="span" disabled={uploading}
+                  onClick={() => document.getElementById('license-upload').click()}
+                  startIcon={<UploadFile />}>
+                  {uploading ? '上传中...' : '上传'}
+                </Button>
+                {form.businessLicenseFile && (
+                    <Tooltip title="查看附件">
+                    <IconButton size="small" color="primary"
+                      onClick={() => handlePreviewAttachment(form.businessLicenseFile)}>
+                      <Description fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                )}
+              </Box>
+            </Grid>
+            <Grid item xs={6}>
+              <TextField fullWidth size="small" label="企微外部联系人ID"
+                value={form.wechatExternalUserId || ''}
+                onChange={(e) => setForm({ ...form, wechatExternalUserId: e.target.value })}
+                placeholder="供应商的企业微信外部联系人ID"
+                helperText="绑定后可自动推送采购计划确认通知到供应商微信" />
             </Grid>
           </Grid>
         </DialogContent>
@@ -461,6 +546,18 @@ export default function SupplierList() {
           <Button variant="contained" onClick={handleSave}>保存</Button>
         </DialogActions>
       </Dialog>
+
+      {/* 地图选点 */}
+      <MapPicker
+        open={mapOpen}
+        onClose={() => setMapOpen(false)}
+        onConfirm={(data) => {
+          setForm({ ...form, address: data.address });
+          setFormErrors({ ...formErrors, address: undefined });
+          setMapOpen(false);
+        }}
+        title="选择供应商地址"
+      />
 
       {/* ===== 删除引用详情弹窗 ===== */}
       <Dialog open={refDialog.open} onClose={() => setRefDialog({ open: false, message: '', references: [] })} maxWidth="md" fullWidth>
@@ -509,6 +606,37 @@ export default function SupplierList() {
         <DialogActions>
           <Button onClick={() => setRefDialog({ open: false, message: '', references: [] })}>关闭</Button>
         </DialogActions>
+      </Dialog>
+
+      {/* ===== 附件预览弹窗 ===== */}
+      <Dialog
+        open={previewDialog.open}
+        onClose={() => setPreviewDialog({ open: false, url: '', name: '' })}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h6">营业执照预览 - {previewDialog.name}</Typography>
+          <IconButton size="small" onClick={() => setPreviewDialog({ open: false, url: '', name: '' })}>
+            <Close fontSize="small" />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 300 }}>
+            {isImage(previewDialog.url) ? (
+              <img src={previewDialog.url} alt={previewDialog.name} style={{ maxWidth: '100%', maxHeight: '70vh' }} />
+            ) : isPdf(previewDialog.url) ? (
+              <iframe src={previewDialog.url} title={previewDialog.name} style={{ width: '100%', height: '70vh', border: 'none' }} />
+            ) : (
+              <Box sx={{ textAlign: 'center', py: 4 }}>
+                <Typography color="text.secondary" sx={{ mb: 2 }}>此文件类型不支持在线预览</Typography>
+                <Button variant="outlined" startIcon={<Download />} href={previewDialog.url} download={previewDialog.name}>
+                  下载附件
+                </Button>
+              </Box>
+            )}
+          </Box>
+        </DialogContent>
       </Dialog>
 
       {/* ===== 关闭确认弹窗 ===== */}

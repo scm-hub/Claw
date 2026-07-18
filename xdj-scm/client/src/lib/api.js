@@ -2,6 +2,11 @@ import { useAuthStore } from '../store/authStore';
 
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, '') + '/api';
 
+// 获取当前组织编码
+function getOrgCode() {
+  return localStorage.getItem('scm_current_org') || '';
+}
+
 function buildQueryString(params) {
   if (!params || !Object.keys(params).length) return '';
   const qs = Object.entries(params)
@@ -24,6 +29,12 @@ async function request(url, options = {}) {
 
   if (token) {
     headers.Authorization = `Bearer ${token}`;
+  }
+
+  // 组织上下文
+  const orgCode = getOrgCode();
+  if (orgCode) {
+    headers['X-Org-Code'] = orgCode;
   }
 
   // 支持 params 查询参数（兼容 axios 风格调用）
@@ -102,5 +113,17 @@ export const api = {
     return res.blob();
   },
 };
+
+// 组织切换工具
+export function setCurrentOrg(orgCode) {
+  if (orgCode) {
+    localStorage.setItem('scm_current_org', orgCode);
+  } else {
+    localStorage.removeItem('scm_current_org');
+  }
+}
+export function getCurrentOrg() {
+  return localStorage.getItem('scm_current_org') || '';
+}
 
 export default api;

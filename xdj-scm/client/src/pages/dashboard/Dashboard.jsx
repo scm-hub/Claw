@@ -245,7 +245,7 @@ export default function Dashboard() {
 
   const today = new Date();
   const dateStr = today.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
-  const userName = user?.name || user?.username || '用户';
+  const userName = user?.employee?.name || user?.name || user?.username || '用户';
 
   const statCards = [
     { label: '产品数量', value: stats.materialCount, icon: <Inventory2 />, gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', path: '/master/materials' },

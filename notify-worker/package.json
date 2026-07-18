@@ -1,0 +1,12 @@
+{
+  "name": "notify-worker",
+  "version": "1.0.0",
+  "description": "企业微信通知发送服务 - 轮询 notification_queue 并发送企微消息给供应商",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "mysql2": "^3.9.0"
+  }
+}

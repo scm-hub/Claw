@@ -596,7 +596,7 @@ export default function PurchaseOrderList() {
                                   <TableCell>{it.material?.name}</TableCell>
                                   <TableCell>{it.material?.spec || '-'}</TableCell>
                                   <TableCell>{it.grade?.name || '-'}</TableCell>
-                                  <TableCell>{it.material?.unit || '-'}</TableCell>
+                                  <TableCell>{it.material?.purchaseUnit || it.material?.unit || '-'}</TableCell>
                                   <TableCell align="right">{it.qty}</TableCell>
                                   <TableCell align="right">{Number(it.unitPrice).toFixed(2)}</TableCell>
                                   <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{Number(it.totalAmount).toFixed(2)}</TableCell>
@@ -710,7 +710,7 @@ export default function PurchaseOrderList() {
                       <Typography variant="caption" color="text.secondary">{plan.title}</Typography>
                       <Chip size="small" label={`${plan.items.length} 条可选`} variant="outlined" sx={{ height: 20 }} />
                       {plan.assignee && (
-                        <Chip size="small" label={plan.assignee.employee?.name || plan.assignee.username} color="info" variant="outlined" sx={{ height: 20 }} />
+                        <Chip size="small" label={plan.assignee.name} color="info" variant="outlined" sx={{ height: 20 }} />
                       )}
                     </Stack>
                   </AccordionSummary>
@@ -862,7 +862,7 @@ export default function PurchaseOrderList() {
                         <TableCell>{it.material?.name || '-'}</TableCell>
                         <TableCell>{it.material?.spec || '-'}</TableCell>
                         <TableCell>{it.grade?.name || '-'}</TableCell>
-                        <TableCell>{it.material?.unit || '-'}</TableCell>
+                        <TableCell>{it.material?.purchaseUnit || it.material?.unit || '-'}</TableCell>
                         <TableCell align="right">
                           <TextField size="small" type="number" value={it.qty} onChange={(e) => handleEditItemChange(idx, 'qty', e.target.value)} inputProps={{ min: 1, style: { textAlign: 'right', width: 65 } }} />
                         </TableCell>
@@ -1010,7 +1010,7 @@ export default function PurchaseOrderList() {
                             <TableCell>{it.material?.name}</TableCell>
                             <TableCell>{it.material?.spec || '-'}</TableCell>
                             <TableCell>{it.grade?.name || '-'}</TableCell>
-                            <TableCell>{it.material?.unit || '-'}</TableCell>
+                            <TableCell>{it.material?.purchaseUnit || it.material?.unit || '-'}</TableCell>
                             <TableCell align="right">{it.qty}</TableCell>
                             <TableCell align="right">{Number(it.unitPrice).toFixed(2)}</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{Number(it.totalAmount).toFixed(2)}</TableCell>

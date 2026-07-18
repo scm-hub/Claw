@@ -19,8 +19,9 @@ function genNo(prefix) {
  * 返回建议列表（含 suggestionNo）
  */
 async function generateSuggestions(analysisDays = 3) {
+  // 智能建议物料范围：启用 或 采购补全已完成
   const materials = await prisma.material.findMany({
-    where: { status: 'ACTIVE' },
+    where: { OR: [{ status: 'ACTIVE' }, { purchaseFieldsComplete: true }] },
     include: { inventory: { include: { warehouse: { select: { id: true, name: true } } } } },
   });
 
@@ -121,7 +122,7 @@ async function allocatePlan(parentPlan) {
   const assignments = await prisma.purchaserAssignment.findMany({
     where: { status: 'ACTIVE' },
     include: {
-      user: { select: { id: true, username: true, employee: { select: { name: true, departmentId: true } } } },
+      employee: { select: { id: true, name: true, departmentId: true } },
       materials: { include: { material: { select: { id: true } } } },
     },
   });
@@ -132,11 +133,11 @@ async function allocatePlan(parentPlan) {
   }
 
   // 构建 materialId -> [assignment] 映射
-  const materialToUsers = {};
+  const materialToAssignments = {};
   for (const assignment of assignments) {
     for (const pm of assignment.materials) {
-      if (!materialToUsers[pm.materialId]) materialToUsers[pm.materialId] = [];
-      materialToUsers[pm.materialId].push(assignment);
+      if (!materialToAssignments[pm.materialId]) materialToAssignments[pm.materialId] = [];
+      materialToAssignments[pm.materialId].push(assignment);
     }
   }
 
@@ -146,16 +147,16 @@ async function allocatePlan(parentPlan) {
     include: { items: true },
   });
 
-  // 按采购员分组
-  const userItemsMap = {};
+  // 按采购员分组（key = employeeId）
+  const employeeItemsMap = {};
   const unassignedItems = [];
 
   for (const item of parentPlanWithItems.items) {
-    const matchedAssignments = materialToUsers[item.materialId];
+    const matchedAssignments = materialToAssignments[item.materialId];
     if (matchedAssignments && matchedAssignments.length > 0) {
       for (const assignment of matchedAssignments) {
-        if (!userItemsMap[assignment.userId]) userItemsMap[assignment.userId] = { assignment, items: [] };
-        userItemsMap[assignment.userId].items.push(item);
+        if (!employeeItemsMap[assignment.employeeId]) employeeItemsMap[assignment.employeeId] = { assignment, items: [] };
+        employeeItemsMap[assignment.employeeId].items.push(item);
       }
     } else {
       unassignedItems.push(item);
@@ -167,7 +168,7 @@ async function allocatePlan(parentPlan) {
   const createdChildren = [];
   const assignedItemIds = [];
 
-  for (const [userId, { assignment, items }] of Object.entries(userItemsMap)) {
+  for (const [employeeId, { assignment, items }] of Object.entries(employeeItemsMap)) {
     const childPlanNo = `${parentPlan.planNo}-${String(seq).padStart(2, '0')}`;
     seq++;
 
@@ -175,16 +176,16 @@ async function allocatePlan(parentPlan) {
       const childPlan = await prisma.purchasePlan.create({
         data: {
           planNo: childPlanNo,
-          title: `${parentPlan.title}（${assignment.user.employee?.name || assignment.user.username}）`,
+          title: `${parentPlan.title}（${assignment.employee.name}）`,
           planType: parentPlan.planType,
-          priceDate: new Date(), // 子计划单据日期取当前系统日期，不继承父计划
+          priceDate: new Date(),
           periodStart: parentPlan.periodStart,
           periodEnd: parentPlan.periodEnd,
-          departmentId: assignment.user.employee?.departmentId || parentPlan.departmentId,
+          departmentId: assignment.employee.departmentId || parentPlan.departmentId,
           status: 'APPROVED',
           creatorId: parentPlan.creatorId,
           parentPlanId: parentPlan.id,
-          assigneeId: userId,
+          assigneeId: employeeId,
           approvedAt: new Date(),
           publishedAt: new Date(),
           remark: `定时自动生成并分配`,

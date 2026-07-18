@@ -7,8 +7,6 @@ import Dashboard from './pages/dashboard/Dashboard';
 import StockMonitor from './pages/dashboard/StockMonitor';
 
 // 基础数据管理
-import MaterialGradeList from './pages/master/MaterialGradeList';
-import MaterialGroupList from './pages/master/MaterialGroupList';
 import MaterialList from './pages/master/MaterialList';
 import CustomerList from './pages/master/CustomerList';
 import SupplierList from './pages/master/SupplierList';
@@ -99,8 +97,6 @@ export default function App() {
           <Route path="dashboard/stock-monitor" element={<StockMonitor />} />
 
           {/* 基础数据 */}
-          <Route path="master/material-grades" element={<MaterialGradeList />} />
-          <Route path="master/material-groups" element={<MaterialGroupList />} />
           <Route path="master/materials" element={<MaterialList />} />
           <Route path="master/customers" element={<CustomerList />} />
           <Route path="master/suppliers" element={<SupplierList />} />

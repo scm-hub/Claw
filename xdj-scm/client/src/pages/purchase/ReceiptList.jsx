@@ -8,7 +8,7 @@ import {
 } from '@mui/material';
 import {
   Search, CheckCircle, UploadFile, AttachFile, Download,
-  KeyboardArrowDown, KeyboardArrowUp, RestartAlt,
+  KeyboardArrowDown, KeyboardArrowUp, RestartAlt, Refresh as RefreshIcon,
 } from '@mui/icons-material';
 import api from '../../lib/api';
 
@@ -46,6 +46,11 @@ export default function ReceiptList() {
   const fileInputRefs = useRef({});
   const [fileTick, setFileTick] = useState(0); // 触发文件 UI 刷新
   const [uploadingFiles, setUploadingFiles] = useState({}); // 按明细id记录上传中状态
+  const [receiveSendTypes, setReceiveSendTypes] = useState([]);
+  const [editingReceiveSendType, setEditingReceiveSendType] = useState({}); // receiptId -> value
+
+  // 加载金蝶收发类别
+  useEffect(() => { api.get('/master/kingdee-receive-send-types').then(res => setReceiveSendTypes(res.data || [])).catch(() => {}); }, []);
 
   const getAttachmentUrl = (path) => {
     if (!path || path.startsWith('http')) return path;
@@ -75,29 +80,16 @@ export default function ReceiptList() {
         }
       });
       setEditingQty(newEditingQty);
+      // 初始化收发类别编辑状态
+      const newRst = {};
+      items.forEach((rcpt) => { if (rcpt.status === 'PENDING') newRst[rcpt.id] = rcpt.receiveSendTypeId || ''; });
+      setEditingReceiveSendType(newRst);
     } catch (err) { console.error(err); }
   };
 
   useEffect(() => { loadList(); }, [page, rowsPerPage, keyword, status, batchNo, supplierId, startDate, endDate]);
   useEffect(() => { setExpandedId(null); }, [page]);
   useEffect(() => { api.get('/purchase/suppliers').then(res => setSuppliers(res.data?.list || res.data || [])).catch(() => {}); }, []);
-
-  // 金蝶同步轮询：列表中存在 SYNCING 状态时自动刷新
-  useEffect(() => {
-    const hasSyncing = list.some((r) => r.kingdeeSyncStatus === 'SYNCING');
-    if (!hasSyncing) return;
-
-    let count = 0;
-    const maxCount = 20; // 最多轮询 20 次 × 3 秒 = 60 秒
-    const timer = setInterval(() => {
-      count += 1;
-      loadList();
-      if (count >= maxCount) clearInterval(timer);
-      // loadList 内部更新 list 后，下次 effect 会判断是否继续
-    }, 3000);
-
-    return () => clearInterval(timer);
-  }, [list]);
 
 
   const handleSearch = () => { setPage(0); };
@@ -157,6 +149,12 @@ export default function ReceiptList() {
       setSnackbar({ open: true, message: '入库单没有明细', severity: 'error' });
       return;
     }
+    // 0. 验证收发类别
+    const rstId = editingReceiveSendType[receipt.id] || receipt.receiveSendTypeId;
+    if (!rstId) {
+      setSnackbar({ open: true, message: '请选择收发类别', severity: 'error' });
+      return;
+    }
     // 逐条校验
     for (const it of receipt.items) {
       const val = Number(editingQty[it.id]);
@@ -181,6 +179,7 @@ export default function ReceiptList() {
           gradeId: it.gradeId || null,
         }));
       formData.append('items', JSON.stringify(itemsData));
+      formData.append('receiveSendTypeId', rstId);
       await api.post(`/purchase/receipts/${receipt.id}/confirm`, formData);
       setSnackbar({ open: true, message: '入库成功！', severity: 'success' });
       loadList();
@@ -250,7 +249,8 @@ export default function ReceiptList() {
   };
 
   // 主表列数（含展开图标列）
-  const MAIN_COL_COUNT = 9;
+  // 表格主行列数：展开图标 + 入库编号/采购订单/供应商/仓库/收发类别/明细数/状态/金蝶同步/入库时间/操作 = 11
+  const MAIN_COL_COUNT = 11;
 
   return (
     <Box>
@@ -301,6 +301,7 @@ export default function ReceiptList() {
               <TableCell sx={{ fontWeight: 'bold' }}>采购订单</TableCell>
               <TableCell sx={{ fontWeight: 'bold' }}>供应商</TableCell>
               <TableCell sx={{ fontWeight: 'bold' }}>仓库</TableCell>
+              <TableCell sx={{ fontWeight: 'bold' }}>收发类别</TableCell>
               <TableCell sx={{ fontWeight: 'bold' }}>明细数</TableCell>
               <TableCell sx={{ fontWeight: 'bold' }}>状态</TableCell>
               <TableCell sx={{ fontWeight: 'bold' }}>金蝶同步</TableCell>
@@ -328,6 +329,31 @@ export default function ReceiptList() {
                     <TableCell>{receipt.purchaseOrder?.orderNo}</TableCell>
                     <TableCell>{receipt.purchaseOrder?.supplier?.name}</TableCell>
                     <TableCell>{receipt.warehouse?.name}</TableCell>
+                    <TableCell sx={{ minWidth: 150 }} onClick={(e) => e.stopPropagation()}>
+                      {receipt.status === 'PENDING' ? (
+                        <TextField
+                          size="small"
+                          select
+                          value={editingReceiveSendType[receipt.id] || ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setEditingReceiveSendType({ ...editingReceiveSendType, [receipt.id]: val });
+                            // 自动保存到后端
+                            api.put(`/purchase/receipts/${receipt.id}/receive-send-type`, { receiveSendTypeId: val }).catch(() => {});
+                          }}
+                          sx={{ width: 140 }}
+                        >
+                          <MenuItem value="">请选择</MenuItem>
+                          {receiveSendTypes.map((t) => (
+                            <MenuItem key={t.code} value={t.code}>{t.name}</MenuItem>
+                          ))}
+                        </TextField>
+                      ) : (
+                        <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                          {receiveSendTypes.find(t => t.code === receipt.receiveSendTypeId)?.name || receipt.receiveSendTypeId || '-'}
+                        </Typography>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <Chip size="small" label={`${receipt.items?.length || 0} 条`} color="primary" variant="outlined" />
                     </TableCell>
@@ -347,9 +373,34 @@ export default function ReceiptList() {
                         <Chip size="small" label="同步中" color="info" icon={<CircularProgress size={12} />} />
                       )}
                       {receipt.kingdeeSyncStatus === 'FAILED' && (
-                        <Tooltip title="金蝶推送失败，请联系管理员">
-                          <Chip size="small" label="失败" color="error" variant="outlined" />
-                        </Tooltip>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <Tooltip title={receipt.kingdeeSyncMessage || '金蝶推送失败，请联系管理员'}>
+                            <Chip size="small" label="失败" color="error" variant="outlined" />
+                          </Tooltip>
+                          <Tooltip title="重新同步到金蝶">
+                            <IconButton
+                              size="small"
+                              color="warning"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (!window.confirm('确定重新同步到金蝶？')) return;
+                                try {
+                                  const res = await api.post(`/purchase/receipts/${receipt.id}/retry-kingdee`);
+                                  if (res.success) {
+                                    setSnackbar({ open: true, message: res.message || '金蝶同步成功', severity: 'success' });
+                                    loadList();
+                                  } else {
+                                    setSnackbar({ open: true, message: res.message || '同步失败', severity: 'error' });
+                                  }
+                                } catch (err) {
+                                  setSnackbar({ open: true, message: '同步失败: ' + (err.response?.data?.message || err.message), severity: 'error' });
+                                }
+                              }}
+                            >
+                              <RefreshIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
                       )}
                       {(!receipt.kingdeeSyncStatus || receipt.kingdeeSyncStatus === 'PENDING') && (
                         <Chip size="small" label="未同步" variant="outlined" sx={{ color: 'text.secondary', borderColor: 'grey.400' }} />
@@ -400,7 +451,7 @@ export default function ReceiptList() {
                                   <TableCell sx={{ fontFamily: 'monospace' }}>{it.material?.code}</TableCell>
                                   <TableCell>{it.material?.name}</TableCell>
                                   <TableCell>{it.material?.spec || '-'}</TableCell>
-                                  <TableCell>{it.material?.unit || '-'}</TableCell>
+                                  <TableCell>{it.material?.purchaseUnit || it.material?.unit || '-'}</TableCell>
                                   <TableCell>
                                     {it.grade?.name || it.orderItem?.grade?.name || '-'}
                                   </TableCell>

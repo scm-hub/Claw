@@ -33,12 +33,15 @@ export async function pullCustomersFromKingdee(forceFull = false) {
 
   let created = 0,
     updated = 0,
-    failed = 0;
+    failed = 0,
+    cleaned = 0;
   const details = [];
+  const pulledCodes = new Set();
 
   for (const record of result.records) {
     try {
       const code = record.FNumber || record.code || '';
+      pulledCodes.add(code);
       const existing = await prisma.kingdeeMasterData.findFirst({
         where: { code, entityType: 'customer' },
       });
@@ -70,7 +73,21 @@ export async function pullCustomersFromKingdee(forceFull = false) {
     }
   }
 
-  return { entityType: 'customer', total: result.total, created, updated, failed, details };
+  if (forceFull) {
+    const cleanWhere = { entityType: 'customer' };
+    if (pulledCodes.size > 0) cleanWhere.code = { notIn: Array.from(pulledCodes) };
+    const toDelete = await prisma.kingdeeMasterData.findMany({
+      where: cleanWhere, select: { id: true },
+    });
+    if (toDelete.length > 0) {
+      await prisma.kingdeeMasterData.deleteMany({
+        where: { id: { in: toDelete.map(r => r.id) } },
+      });
+      cleaned = toDelete.length;
+    }
+  }
+
+  return { entityType: 'customer', total: result.total, created, updated, failed, cleaned, details };
 }
 
 /**
@@ -89,12 +106,15 @@ export async function pullSuppliersFromKingdee(forceFull = false) {
 
   let created = 0,
     updated = 0,
-    failed = 0;
+    failed = 0,
+    cleaned = 0;
   const details = [];
+  const pulledCodes = new Set();
 
   for (const record of result.records) {
     try {
       const code = record.FNumber || record.code || '';
+      pulledCodes.add(code);
       const existing = await prisma.kingdeeMasterData.findFirst({
         where: { code, entityType: 'supplier' },
       });
@@ -125,7 +145,21 @@ export async function pullSuppliersFromKingdee(forceFull = false) {
     }
   }
 
-  return { entityType: 'supplier', total: result.total, created, updated, failed, details };
+  if (forceFull) {
+    const cleanWhere = { entityType: 'supplier' };
+    if (pulledCodes.size > 0) cleanWhere.code = { notIn: Array.from(pulledCodes) };
+    const toDelete = await prisma.kingdeeMasterData.findMany({
+      where: cleanWhere, select: { id: true },
+    });
+    if (toDelete.length > 0) {
+      await prisma.kingdeeMasterData.deleteMany({
+        where: { id: { in: toDelete.map(r => r.id) } },
+      });
+      cleaned = toDelete.length;
+    }
+  }
+
+  return { entityType: 'supplier', total: result.total, created, updated, failed, cleaned, details };
 }
 
 /**
@@ -137,19 +171,22 @@ export async function pullMaterialsFromKingdee(forceFull = false) {
 
   let result;
   try {
-    result = await adapter.pullMaterials(lastSync);
+    result = await adapter.pullMaterialsWithGrades(lastSync);
   } catch (err) {
     throw new Error(`拉取金蝶物料数据失败: ${err.message}`);
   }
 
   let created = 0,
     updated = 0,
-    failed = 0;
+    failed = 0,
+    cleaned = 0;
   const details = [];
+  const pulledCodes = new Set();
 
   for (const record of result.records) {
     try {
       const code = record.FNumber || record.code || '';
+      pulledCodes.add(code);
       const existing = await prisma.kingdeeMasterData.findFirst({
         where: { code, entityType: 'material' },
       });
@@ -167,12 +204,15 @@ export async function pullMaterialsFromKingdee(forceFull = false) {
           purchaseUnitName: record['FPurchaseUnitId.FName'] || '',
           salesUnit: record.FSaleUnitId || '',
           salesUnitName: record['FSaleUnitId.FName'] || '',
+          storeUnit: record.FStoreUnitID || '',
+          storeUnitName: record['FStoreUnitID.FName'] || '',
           materialGroup: record.FMaterialGroup || '',
           materialGroupName: record['FMaterialGroup.FName'] || '',
           auxProperty: record.FAuxPropertyId || '',
           auxPropertyName: record['FAuxPropertyId.FName'] || '',
           useOrgNumber: record['FUseOrgId.FNumber'] || '',
           useOrgName: record['FUseOrgId.FName'] || '',
+          grades: record.grades || [],
         }),
         lastSyncAt: new Date(),
       };
@@ -190,7 +230,21 @@ export async function pullMaterialsFromKingdee(forceFull = false) {
     }
   }
 
-  return { entityType: 'material', total: result.total, created, updated, failed, details };
+  if (forceFull) {
+    const cleanWhere = { entityType: 'material' };
+    if (pulledCodes.size > 0) cleanWhere.code = { notIn: Array.from(pulledCodes) };
+    const toDelete = await prisma.kingdeeMasterData.findMany({
+      where: cleanWhere, select: { id: true },
+    });
+    if (toDelete.length > 0) {
+      await prisma.kingdeeMasterData.deleteMany({
+        where: { id: { in: toDelete.map(r => r.id) } },
+      });
+      cleaned = toDelete.length;
+    }
+  }
+
+  return { entityType: 'material', total: result.total, created, updated, failed, cleaned, details };
 }
 
 /**
@@ -209,12 +263,15 @@ export async function pullWarehousesFromKingdee(forceFull = false) {
 
   let created = 0,
     updated = 0,
-    failed = 0;
+    failed = 0,
+    cleaned = 0;
   const details = [];
+  const pulledCodes = new Set();
 
   for (const record of result.records) {
     try {
       const code = record.FNumber || record.code || '';
+      pulledCodes.add(code);
       const existing = await prisma.kingdeeMasterData.findFirst({
         where: { code, entityType: 'warehouse' },
       });
@@ -251,7 +308,22 @@ export async function pullWarehousesFromKingdee(forceFull = false) {
     }
   }
 
-  return { entityType: 'warehouse', total: result.total, created, updated, failed, details };
+  // 全量拉取后清理金蝶已删除的数据
+  if (forceFull) {
+    const cleanWhere = { entityType: 'warehouse' };
+    if (pulledCodes.size > 0) cleanWhere.code = { notIn: Array.from(pulledCodes) };
+    const toDelete = await prisma.kingdeeMasterData.findMany({
+      where: cleanWhere, select: { id: true },
+    });
+    if (toDelete.length > 0) {
+      await prisma.kingdeeMasterData.deleteMany({
+        where: { id: { in: toDelete.map(r => r.id) } },
+      });
+      cleaned = toDelete.length;
+    }
+  }
+
+  return { entityType: 'warehouse', total: result.total, created, updated, failed, cleaned, details };
 }
 
 /**

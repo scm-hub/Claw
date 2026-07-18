@@ -55,7 +55,6 @@ function DepartmentFormDialog({ open, editing, departments, employees, onClose, 
   const handleSubmit = async () => {
     setError('');
     if (!form.name.trim()) { setError('部门名称不能为空'); return; }
-    if (!form.managerId) { setError('请选择部门负责人'); return; }
     setSaving(true);
     try {
       if (editing) {
@@ -126,7 +125,7 @@ function DepartmentFormDialog({ open, editing, departments, employees, onClose, 
             });
           }}
           renderInput={(params) => (
-            <TextField {...params} label="部门负责人" margin="normal" required placeholder="搜索姓名/工号/岗位..." size="small" />
+            <TextField {...params} label="部门负责人" margin="normal" placeholder="搜索姓名/工号/岗位...（可选，可后续指定）" size="small" />
           )}
           renderOption={(props, emp) => {
             const { key, ...rest } = props;
@@ -387,7 +386,7 @@ function DepartmentRow({ dept, depth, siblings, index, onEdit, onDelete, onToggl
               }}
             />
           ) : (
-            <Chip label="未指定" size="small" variant="outlined" sx={{ color: 'text.secondary', borderStyle: 'dashed' }} />
+            <Chip label="—待指定—" size="small" variant="outlined" sx={{ color: 'text.secondary', borderStyle: 'dashed' }} />
           )}
         </TableCell>
         <TableCell align="center" sx={{ borderBottom: `1px solid ${alpha('#667eea', 0.08)}` }}>
@@ -698,7 +697,9 @@ export default function DepartmentTree() {
           <CardContent sx={{ textAlign: 'center', py: 8 }}>
             <DomainIcon sx={{ fontSize: 72, color: alpha('#667eea', 0.2), mb: 2 }} />
             <Typography variant="h6" color="text.secondary" sx={{ mb: 0.5 }}>暂无部门数据</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>点击「新建部门」开始搭建组织架构</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              首次使用？请先创建部门（可不指定负责人），再录入员工，最后回填部门负责人
+            </Typography>
             {canEdit && (
               <Button variant="contained" startIcon={<AddIcon />} onClick={handleAdd}
                 sx={{

@@ -294,9 +294,9 @@ class KingdeeAdapter {
    * 从金蝶拉取物料/产品列表
    */
   async pullMaterials(lastSyncTime) {
-    console.log('[Kingdee] 拉取物料数据（仅 0502 开头）...');
-    // 只拉取编码 0502 开头的物料
-    let filter = "FNumber like '0502%'";
+    console.log('[Kingdee] 拉取物料数据（仅已审核，组织 10001）...');
+    // FDocumentStatus='C' = 已审核, FForbidStatus='A' = 未禁用, FUseOrgId.FNumber='10001' = 山东七河
+    let filter = "FDocumentStatus='C' and FForbidStatus='A' and FUseOrgId.FNumber='10001'";
     if (lastSyncTime) filter = `(${filter}) and (FModifyDate >= '${lastSyncTime}')`;
     // FBaseUnitId=基本单位, FPurchaseUnitId=采购单位, FSaleUnitId=销售单位, FMaterialGroup=物料分组, FAuxPropertyId=辅助属性
     const fields = 'FNumber,FName,FSpecification,FBaseUnitId,FBaseUnitId.FName,FPurchaseUnitId,FPurchaseUnitId.FName,FSaleUnitId,FSaleUnitId.FName,FMaterialGroup,FMaterialGroup.FName,FAuxPropertyId,FAuxPropertyId.FName,FUseOrgId.FNumber,FUseOrgId.FName';
@@ -339,8 +339,8 @@ class KingdeeAdapter {
   async pullWarehouses(lastSyncTime) {
     console.log('[Kingdee] 拉取仓库数据（仅已审核，全组织）...');
     // BD_STOCK：仓库基础资料
-    // FForbidStatus='A' = 已审核可用（不限制组织，全数据中心拉取）
-    const filter = "FForbidStatus='A'";
+    // FDocumentStatus='C' = 已审核, FForbidStatus='A' = 未禁用（不限制组织，全数据中心拉取）
+    const filter = "FDocumentStatus='C' and FForbidStatus='A'";
     // 如果指定了增量同步时间，追加过滤条件
     const fullFilter = lastSyncTime
       ? `(${filter}) and (FModifyDate >= '${lastSyncTime}')`
@@ -437,84 +437,53 @@ class KingdeeAdapter {
    * 输出格式：每条物料记录包含 grades 数组（[{FNumber, FName}]）
    */
   async pullMaterialsWithGrades(lastSyncTime) {
-    console.log('[Kingdee] 拉取物料数据（含等级关联）...');
-    const filter = "FNumber like '0502%'";
+    console.log('[Kingdee] 拉取物料数据（含等级关联，仅已审核，组织 10001）...');
+    const filter = "FDocumentStatus='C' and FForbidStatus='A' and FUseOrgId.FNumber='10001'";
     const fullFilter = lastSyncTime
       ? `(${filter}) and (FModifyDate >= '${lastSyncTime}')`
       : filter;
-    // 拉取物料 + 辅助属性 ID
     const records = await this._executeBillQuery(
       'BD_MATERIAL',
-      'FNumber,FName,FSpecification,FBaseUnitId.FName,FBaseUnitId.FNumber,FPurchaseUnitId.FName,FPurchaseUnitId.FNumber,FSaleUnitId.FName,FSaleUnitId.FNumber,FMaterialGroup.FNumber,FMaterialGroup.FName,FUseOrgId.FNumber,FUseOrgId.FName,FForbidStatus,FIDAuxProp',
+      'FNumber,FName,FSpecification,FBaseUnitId,FBaseUnitId.FName,FPurchaseUnitId,FPurchaseUnitId.FName,FSaleUnitId,FSaleUnitId.FName,FMaterialGroup,FMaterialGroup.FName,FAuxPropertyId,FAuxPropertyId.FName,FUseOrgId.FNumber,FUseOrgId.FName,FStoreUnitID,FStoreUnitID.FName',
       fullFilter,
     );
     console.log(`[Kingdee] 物料数据: ${records.length} 条`);
 
-    // 收集所有用到的 FIDAuxProp ID
-    const auxPropIds = new Set();
-    for (const r of records) {
-      const aux = r['FIDAuxProp'];
-      if (aux) {
-        // FIDAuxProp 可能是对象或数组
-        const list = Array.isArray(aux) ? aux : [aux];
-        for (const item of list) {
-          if (item?.FID) auxPropIds.add(item.FID);
-        }
-      }
-    }
-    console.log(`[Kingdee] 涉及的辅助属性组: ${auxPropIds.size} 个`);
-
-    // 拉取每个辅助属性组下的等级
-    const gradesByGroup = new Map(); // FID → [{FNumber, FName}]
-    for (const fid of auxPropIds) {
-      try {
-        const gradeRecords = await this._executeBillQuery(
-          'BOS_ASSISTANTDATA_DETAIL',
-          'FNumber,FDataValue,FID',
-          "FID=" + fid,
-        );
-        // 去重
-        const seen = new Set();
-        const unique = [];
-        for (const g of gradeRecords) {
-          if (!seen.has(g.FNumber)) {
-            seen.add(g.FNumber);
-            unique.push({ FNumber: g.FNumber, FName: g.FDataValue });
-          }
-        }
-        gradesByGroup.set(fid, unique);
-      } catch (e) {
-        console.log(`[Kingdee] 拉取辅助属性 ${fid} 失败:`, e.message.substring(0, 100));
-      }
-    }
+    // 拉取物料等级对照表（BD_AuxPtyValue，物料编码→等级名称）
+    const gradeMap = await this.pullMaterialGradeValues();
+    console.log(`[Kingdee] 物料等级对照表: ${gradeMap.size} 个物料有等级数据`);
 
     // 给每个物料附加 grades
     for (const r of records) {
-      const aux = r['FIDAuxProp'];
-      const grades = [];
-      if (aux) {
-        const list = Array.isArray(aux) ? aux : [aux];
-        for (const item of list) {
-          if (item?.FID && gradesByGroup.has(item.FID)) {
-            // 物料可能指定了具体值
-            const allowed = Array.isArray(item.FValue) ? item.FValue : (item.FValue ? [item.FValue] : []);
-            const allGrades = gradesByGroup.get(item.FID);
-            if (allowed.length > 0) {
-              for (const a of allowed) {
-                const matched = allGrades.find(g => g.FNumber === a.FNumber || g.FNumber === a);
-                if (matched) grades.push(matched);
-              }
-            } else {
-              // 没有限制就全部等级可用
-              grades.push(...allGrades);
-            }
-          }
-        }
-      }
-      r.grades = grades;
+      const matCode = r.FNumber || '';
+      r.grades = gradeMap.get(matCode) || [];
     }
 
     return { entityType: 'material', total: records.length, records };
+  }
+
+  /**
+   * 从金蝶 BD_AuxPtyValue 拉取物料等级对照表
+   * 返回 Map: 物料编码 → [{FNumber, FName}]
+   */
+  async pullMaterialGradeValues() {
+    const records = await this._executeBillQuery(
+      'BD_AuxPtyValue',
+      'FMaterialId.FNumber,FAuxPtyNumber,FAuxPtyName',
+      "FMaterialAuxPropertyId.FNumber='wldj'",
+    );
+    const map = new Map();
+    for (const r of records) {
+      const matCode = (r['FMaterialId.FNumber'] || '').trim();
+      if (!matCode) continue;
+      const grade = {
+        FNumber: r.FAuxPtyNumber || '',
+        FName: r.FAuxPtyName || '',
+      };
+      if (!map.has(matCode)) map.set(matCode, []);
+      map.get(matCode).push(grade);
+    }
+    return map;
   }
 
   // ---- 推送数据到金蝶（MDM → 金蝶）【已禁用，只拉取不推送】----
@@ -741,12 +710,15 @@ class KingdeeAdapter {
    * @param {Array}  params.entries - 明细行 [{ materialCode, qty, price, unitCode, warehouseCode, note, deliveryDate }]
    * @returns {{ success: boolean, fid: string, billNo: string, error?: string }}
    */
-  async createPurchaseOrder({ supplierCode, purchaseOrgCode = '10001', date, entries }) {
+  async createPurchaseOrder({ supplierCode, purchaseOrgCode = '10001', date, entries, receiveSendTypeId }) {
     const orderData = {
       FBillTypeID: { FNumber: 'CGDD01_SYS' },
       FDate: date || new Date().toISOString().slice(0, 10),
       FSupplierId: { FNumber: supplierCode },
       FPurchaseOrgId: { FNumber: purchaseOrgCode },
+      FStockOrgId: { FNumber: purchaseOrgCode },
+      FReceiveOrgId: { FNumber: purchaseOrgCode },
+      FSflb: { FNumber: receiveSendTypeId || '004' },
       FBusinessType: 'CG',
       FSettleId: { FNumber: supplierCode },
       FChargeId: { FNumber: supplierCode },
@@ -758,26 +730,37 @@ class KingdeeAdapter {
         FExchangeTypeId: { FNumber: 'HLTX01_SYS' },
         FExchangeRate: 1,
       },
-      FPOOrderEntry: entries.map((e, i) => ({
-        FSeq: i + 1,
-        FMaterialId: { FNumber: e.materialCode },        FUnitId: { FNumber: e.unitCode },
-        FPriceUnitId: { FNumber: e.unitCode },
-        FStockUnitID: { FNumber: e.unitCode },
-        FStockId: { FNumber: e.warehouseCode },
-        FQty: e.qty,
-        FStockQty: e.qty,
-        FPriceUnitQty: e.qty,
-        FPrice: e.price,
-        FTaxPrice: e.price,
-        FTaxRate: 0,
-        FAmount: +(e.qty * e.price).toFixed(2),
-        FAllAmount: +(e.qty * e.price).toFixed(2),
-        FDeliveryDate: e.deliveryDate || date,
-        FNote: e.note || 'SCM系统推送',
-        FGiveAway: false,
-        FIsStock: true,
-        FProductType: '1',
-      })),
+      FPOOrderEntry: entries.map((e, i) => {
+        const entry = {
+          FSeq: i + 1,
+          FMaterialId: { FNumber: e.materialCode },
+          FUnitId: { FNumber: e.unitCode },
+          FPriceUnitId: { FNumber: e.unitCode },
+          FStockUnitID: { FNumber: e.unitCode },
+          FStockId: { FNumber: e.warehouseCode },
+          FPurchaseOrgId: { FNumber: purchaseOrgCode },
+          FStockOrgId: { FNumber: purchaseOrgCode },
+          FReceiveOrgId: { FNumber: purchaseOrgCode },
+          FQty: e.qty,
+          FStockQty: e.qty,
+          FPriceUnitQty: e.qty,
+          FPrice: e.price,
+          FTaxPrice: e.price,
+          FTaxRate: 0,
+          FAmount: +(e.qty * e.price).toFixed(2),
+          FAllAmount: +(e.qty * e.price).toFixed(2),
+          FDeliveryDate: e.deliveryDate || date,
+          FNote: e.note || 'SCM系统推送',
+          FGiveAway: false,
+          FIsStock: true,
+          FProductType: '1',
+        };
+        // 物料等级（辅助属性-物料等级）：SCM gradeCode = Kingdee FAuxPtyNumber
+        if (e.gradeCode) {
+          entry.FAuxPropId = { FAux1: { FNumber: String(e.gradeCode) } };
+        }
+        return entry;
+      }),
     };
 
     const saveResult = await this.client.save('PUR_PurchaseOrder', orderData);
@@ -804,41 +787,59 @@ class KingdeeAdapter {
    * @param {String} params.date - 日期
    * @param {Array}  params.entries - 明细行 [{ materialCode, qty, price, unitCode, warehouseCode, note }]
    * @param {String} params.sourceBillNo - 来源采购订单号（可选，记录用）
+   * @param {String} params.receiveSendTypeId - 收发类别编码（金蝶编码），默认 '004'
    * @returns {{ success: boolean, fid: string, billNo: string, error?: string }}
    */
-  async createInboundReceipt({ supplierCode, stockOrgCode = '10001', date, entries, sourceBillNo }) {
+  async createInboundReceipt({ supplierCode, stockOrgCode = '10001', date, entries, sourceBillNo, receiveSendTypeId }) {
     const inboundData = {
       FBillTypeID: { FNumber: 'RKD02_SYS' },
       FDate: date || new Date().toISOString().slice(0, 10),
       FStockOrgId: { FNumber: stockOrgCode },
       FOwnerTypeIdHead: 'BD_OwnerOrg',
       FOwnerIdHead: { FNumber: stockOrgCode },
-      F_VIIH_Base: { FNumber: '004' },
+      F_VIIH_Base: { FNumber: receiveSendTypeId || '004' },
       FSupplierId: { FNumber: supplierCode },
-      FInStockEntry: entries.map((e, i) => ({
-        FSeq: i + 1,
-        FMaterialId: { FNumber: e.materialCode },
-        FUnitID: { FNumber: e.unitCode },
-        FPriceUnitID: { FNumber: e.unitCode },
-        FStockUnitId: { FNumber: e.unitCode },
-        FStockId: { FNumber: e.warehouseCode },
-        FQty: e.qty,
-        FStockQty: e.qty,
-        FPriceUnitQty: e.qty,
-        FPrice: e.price,
-        FTaxPrice: e.price,
-        FTaxRate: 0,
-        FAmount: +(e.qty * e.price).toFixed(2),
-        FAllAmount: +(e.qty * e.price).toFixed(2),
-        FNote: e.note || 'SCM系统推送',
-        FGiveAway: false,
-        FOWNERID: { FNumber: stockOrgCode },
-        FOWNERTYPEID: 'BD_OwnerOrg',
-        FSTOCKORGID: { FNumber: stockOrgCode },
-      })),
+      FInStockEntry: entries.map((e, i) => {
+        const entry = {
+          FSeq: i + 1,
+          FMaterialId: { FNumber: e.materialCode },
+          FUnitID: { FNumber: e.unitCode },
+          FPriceUnitID: { FNumber: e.unitCode },
+          FStockUnitId: { FNumber: e.unitCode },
+          FStockId: { FNumber: e.warehouseCode },
+          FQty: e.qty,
+          FStockQty: e.qty,
+          FPriceUnitQty: e.qty,
+          FPrice: e.price,
+          FTaxPrice: e.price,
+          FTaxRate: 0,
+          FAmount: +(e.qty * e.price).toFixed(2),
+          FAllAmount: +(e.qty * e.price).toFixed(2),
+          FNote: e.note || 'SCM系统推送',
+          FGiveAway: false,
+          FOWNERID: { FNumber: stockOrgCode },
+          FOWNERTYPEID: 'BD_OwnerOrg',
+          FSTOCKORGID: { FNumber: stockOrgCode },
+        };
+        // 物料等级（辅助属性-物料等级）
+        if (e.gradeCode) {
+          entry.FAuxPropId = { FAux1: { FNumber: String(e.gradeCode) } };
+        }
+        return entry;
+      }),
     };
 
     const saveResult = await this.client.save('STK_InStock', inboundData);
+    if (!saveResult?.Result?.ResponseStatus?.IsSuccess) {
+      // 完整错误信息（含所有字段级错误）
+      const errs = saveResult?.Result?.ResponseStatus?.Errors || [];
+      console.log('[Kingdee][createInboundReceipt] 推送字段:', JSON.stringify({
+        FStockOrgId: inboundData.FStockOrgId?.FNumber,
+        F_VIIH_Base: inboundData.F_VIIH_Base?.FNumber,
+        receiveSendTypeId_Param: receiveSendTypeId,
+      }));
+      console.log('[Kingdee][createInboundReceipt] 完整错误:', JSON.stringify(errs, null, 2));
+    }
     const fid = saveResult.Result?.Id || saveResult.Result?.ResponseStatus?.SuccessEntitys?.[0]?.Id;
     const billNo = saveResult.Result?.Number || saveResult.Result?.ResponseStatus?.SuccessEntitys?.[0]?.Number;
 

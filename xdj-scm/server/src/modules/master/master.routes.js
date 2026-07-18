@@ -1,17 +1,61 @@
 import { Router } from 'express';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 import { authenticate } from '../../middleware/auth.js';
 import { authorize, ROLES } from '../../middleware/rbac.js';
+import { orgContext, getOrgFilter } from '../../middleware/orgContext.js';
 import prisma from '../../shared/prisma.js';
 import { getScmModuleUserEmails, getPool } from '../../shared/portalDb.js';
+import { getPortalUsersByScmModule } from '../../shared/portalClient.js';
 import materialGradeRoutes from './material-grade.routes.js';
 
 const router = Router();
+
+// ======== 文件上传配置 ========
+const uploadsDir = path.join(process.cwd(), 'uploads', 'supplier');
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+const supplierUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, uploadsDir),
+    filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`),
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+});
 
 // 所有路由都需要认证
 router.use(authenticate);
 
 // 使用物料等级路由
 router.use(materialGradeRoutes);
+
+// 获取金蝶组织列表（供前端下拉框使用）
+router.get('/organizations', async (req, res, next) => {
+  try {
+    const mysql = (await import('mysql2/promise')).default;
+    // SCM test db → mdm_db_test, SCM prod db → mdm_db
+    const scmDb = (process.env.DATABASE_URL || '').match(/\/([^/?]+)(?:\?|$)/)?.[1] || 'xdj_scm_db';
+    const mdmDb = scmDb.includes('_test') ? 'mdm_db_test' : 'mdm_db';
+    const conn = await mysql.createConnection({
+      host: 'localhost', port: 3306, user: 'root', password: 'Scm@2025!', database: mdmDb,
+      timezone: '+00:00',
+    });
+    const sql = `SELECT DISTINCT
+      JSON_UNQUOTE(JSON_EXTRACT(extra, '$.useOrgNumber')) as orgCode,
+      JSON_UNQUOTE(JSON_EXTRACT(extra, '$.useOrgName')) as orgName
+      FROM kingdee_master_data
+      WHERE JSON_EXTRACT(extra, '$.useOrgNumber') IS NOT NULL
+        AND JSON_EXTRACT(extra, '$.useOrgNumber') NOT LIKE '%,%'
+        AND LENGTH(JSON_UNQUOTE(JSON_EXTRACT(extra, '$.useOrgNumber'))) >= 5
+      ORDER BY orgName`;
+    const [rows] = await conn.query(sql);
+    await conn.end();
+    const orgs = rows.filter(r => r.orgCode && r.orgName).map(r => ({ orgCode: r.orgCode, orgName: r.orgName }));
+    res.json({ success: true, data: orgs });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
 
 // ============================================================
 // 编码自动生成工具
@@ -206,6 +250,24 @@ router.post('/sync-from-hrms', authorize(ROLES.SUPER_ADMIN), async (req, res, ne
         }
       }
 
+      // --- 回填部门负责人（员工已同步，现在能匹配到了） ---
+      let managerUpdatedCount = 0;
+      for (const hd of hrmsDepts) {
+        if (!hd.managerEmpNo) continue;
+        const scmManager = await prisma.employee.findUnique({ where: { empNo: hd.managerEmpNo } });
+        if (!scmManager) continue;
+        const scmDept = await prisma.department.findFirst({ where: { name: hd.name } });
+        if (!scmDept || scmDept.managerId === scmManager.id) continue;
+        await prisma.department.update({
+          where: { id: scmDept.id },
+          data: { managerId: scmManager.id },
+        });
+        managerUpdatedCount++;
+      }
+      if (managerUpdatedCount > 0) {
+        result.departments.managerBackfilled = managerUpdatedCount;
+      }
+
       // --- 清理 SCM 中 HRMS 没有的数据 ---
       const [allHrmsDepts] = await hrmsConn.execute('SELECT name FROM Department');
       const [allHrmsEmps] = await hrmsConn.execute('SELECT employeeNo FROM Employee');
@@ -351,7 +413,8 @@ router.delete('/material-groups/:id', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHAS
 router.get('/kingdee-materials', async (req, res, next) => {
   try {
     const { keyword = '', limit = 50 } = req.query;
-    const url = `http://localhost:4005/api/kingdee/search-materials?keyword=${encodeURIComponent(keyword)}&limit=${limit}`;
+    const orgCode = req.orgCode || '';
+    const url = `http://localhost:14005/api/kingdee/search-materials?keyword=${encodeURIComponent(keyword)}&limit=${limit}&orgCode=${encodeURIComponent(orgCode)}`;
     const resp = await fetch(url);
     const data = await resp.json();
     if (!data.success) {
@@ -362,13 +425,112 @@ router.get('/kingdee-materials', async (req, res, next) => {
 });
 
 /**
+ * POST /api/master/sync-materials-from-kingdee — 批量导入所有金蝶物料到 SCM 产品管理
+ * 将金蝶物料数据一次性同步到 SCM materials 表，自动映射所有字段（仅 SUPER_ADMIN）
+ */
+router.post('/sync-materials-from-kingdee', authorize(ROLES.SUPER_ADMIN), async (req, res, next) => {
+  try {
+    const orgCode = req.orgCode || '';
+    const url = `http://localhost:14005/api/kingdee/search-materials?keyword=&limit=50000&orgCode=${encodeURIComponent(orgCode)}`;
+    const resp = await fetch(url);
+    const { success, data: kdMaterials } = await resp.json();
+    if (!success) return res.status(500).json({ success: false, message: '无法获取金蝶物料数据' });
+
+    let created = 0, updated = 0;
+    const kdCodes = new Set();
+    for (const kd of kdMaterials) {
+      kdCodes.add(kd.code);
+      const existing = await prisma.material.findFirst({ where: { code: kd.code } });
+      const m = {
+        name: kd.name || kd.code,
+        spec: kd.spec || '',
+        unit: kd.baseUnitName || kd.baseUnit || '',
+        storeUnit: kd.storeUnitName || kd.storeUnit || '',
+        purchaseUnit: kd.purchaseUnitName || kd.purchaseUnit || '',
+        salesUnit: kd.salesUnitName || kd.salesUnit || '',
+        materialGroupName: kd.materialGroupName || kd.materialGroup || '',
+        orgCode: orgCode || null,
+      };
+      if (existing) {
+        await prisma.material.update({ where: { id: existing.id }, data: m });
+        updated++;
+      } else {
+        await prisma.material.create({ data: { code: kd.code, ...m, status: 'DRAFT', purchaseFieldsComplete: false, salesFieldsComplete: false, warehouseFieldsComplete: false } });
+        created++;
+      }
+    }
+
+    // 全量清理：删除/停用 SCM 中金蝶已不存在的物料
+    let cleaned = 0, deactivated = 0;
+    if (kdCodes.size > 0) {
+      const staleWhere = {
+        orgCode: orgCode || null,
+        code: { notIn: Array.from(kdCodes) },
+      };
+      const staleMaterials = await prisma.material.findMany({
+        where: staleWhere,
+        select: { id: true, code: true, name: true },
+      });
+
+      for (const mat of staleMaterials) {
+        // 检查是否被业务单据引用
+        const [stockMove, batch, planItem, orderItem, salesItem, receiptItem, shipItem, stockTake] = await Promise.all([
+          prisma.stockMovement.count({ where: { materialId: mat.id }, take: 1 }),
+          prisma.batch.count({ where: { materialId: mat.id }, take: 1 }),
+          prisma.purchasePlanItem.count({ where: { materialId: mat.id }, take: 1 }),
+          prisma.purchaseOrderItem.count({ where: { materialId: mat.id }, take: 1 }),
+          prisma.salesOrderItem.count({ where: { materialId: mat.id }, take: 1 }),
+          prisma.purchaseReceiptItem.count({ where: { materialId: mat.id }, take: 1 }),
+          prisma.shippingOrderItem.count({ where: { materialId: mat.id }, take: 1 }),
+          prisma.stockTakeItem.count({ where: { materialId: mat.id }, take: 1 }),
+        ]);
+
+        const hasRef = stockMove > 0 || batch > 0 || planItem > 0 || orderItem > 0
+          || salesItem > 0 || receiptItem > 0 || shipItem > 0 || stockTake > 0;
+
+        if (hasRef) {
+          // 已被业务单据引用 → 仅停用
+          await prisma.material.update({ where: { id: mat.id }, data: { status: 'INACTIVE' } });
+          deactivated++;
+        } else {
+          // 无引用 → 直接删除（含关联的等级映射）
+          await prisma.materialGradeMapping.deleteMany({ where: { materialId: mat.id } });
+          await prisma.material.delete({ where: { id: mat.id } });
+          cleaned++;
+        }
+      }
+    }
+
+    res.json({ success: true, data: { total: kdMaterials.length, created, updated, cleaned, deactivated } });
+  } catch (err) { next(err); }
+});
+
+/**
+ * GET /api/master/kingdee-receive-send-types — 金蝶收发类别下拉（供采购入库/销售出库）
+ * 代理转发到 MDM 服务
+ */
+router.get('/kingdee-receive-send-types', async (req, res, next) => {
+  try {
+    const { keyword = '', limit = 200 } = req.query;
+    const url = `http://localhost:14005/api/kingdee/search-receive-send-types?keyword=${encodeURIComponent(keyword)}&limit=${limit}`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if (!data.success) {
+      return res.status(500).json({ success: false, message: data.message || 'MDM 查询失败' });
+    }
+    res.json({ success: true, data: data.data?.items || data.data || [] });
+  } catch (err) { next(err); }
+});
+
+/**
  * GET /api/master/kingdee-customers — 金蝶客户快速搜索（供客户名称下拉）
  * 代理转发到 MDM 服务
  */
 router.get('/kingdee-customers', async (req, res, next) => {
   try {
     const { keyword = '', limit = 50 } = req.query;
-    const url = `http://localhost:4005/api/kingdee/search-customers?keyword=${encodeURIComponent(keyword)}&limit=${limit}`;
+    const orgCode = req.orgCode || '';
+    const url = `http://localhost:14005/api/kingdee/search-customers?keyword=${encodeURIComponent(keyword)}&limit=${limit}&orgCode=${encodeURIComponent(orgCode)}`;
     const resp = await fetch(url);
     const data = await resp.json();
     if (!data.success) {
@@ -385,7 +547,8 @@ router.get('/kingdee-customers', async (req, res, next) => {
 router.get('/kingdee-suppliers', async (req, res, next) => {
   try {
     const { keyword = '', limit = 50 } = req.query;
-    const url = `http://localhost:4005/api/kingdee/search-suppliers?keyword=${encodeURIComponent(keyword)}&limit=${limit}`;
+    const orgCode = req.orgCode || '';
+    const url = `http://localhost:14005/api/kingdee/search-suppliers?keyword=${encodeURIComponent(keyword)}&limit=${limit}&orgCode=${encodeURIComponent(orgCode)}`;
     const resp = await fetch(url);
     const data = await resp.json();
     if (!data.success) {
@@ -402,7 +565,8 @@ router.get('/kingdee-suppliers', async (req, res, next) => {
 router.get('/kingdee-warehouses', async (req, res, next) => {
   try {
     const { keyword = '', limit = 50 } = req.query;
-    const url = `http://localhost:4005/api/kingdee/search-warehouses?keyword=${encodeURIComponent(keyword)}&limit=${limit}`;
+    const orgCode = req.orgCode || '';
+    const url = `http://localhost:14005/api/kingdee/search-warehouses?keyword=${encodeURIComponent(keyword)}&limit=${limit}&orgCode=${encodeURIComponent(orgCode)}`;
     const resp = await fetch(url);
     const data = await resp.json();
     if (!data.success) {
@@ -426,8 +590,10 @@ router.get('/materials/categories', async (req, res, next) => {
 
 router.get('/materials', async (req, res, next) => {
   try {
-    const { page = 1, pageSize = 20, keyword = '', category = '', status = '', barcode = '', groupId = '', gradeId = '' } = req.query;
+    const { page = 1, pageSize = 20, keyword = '', category = '', status = '', barcode = '', groupId = '', gradeId = '', module = '', purchaseComplete, salesComplete, purchaseOrActive } = req.query;
     const where = {};
+    // 组织过滤
+    Object.assign(where, getOrgFilter(req));
     if (keyword) {
       where.OR = [
         { name: { contains: keyword } },
@@ -442,6 +608,34 @@ router.get('/materials', async (req, res, next) => {
     if (gradeId) {
       where.materialGrades = { some: { gradeId } };
     }
+    if (purchaseComplete === '1') where.purchaseFieldsComplete = true;
+    if (purchaseComplete === '0') where.purchaseFieldsComplete = false;
+    if (salesComplete === '1') where.salesFieldsComplete = true;
+    if (salesComplete === '0') where.salesFieldsComplete = false;
+
+    // ======== purchaseOrActive 模式：采购已补全 或 已启用（OR 逻辑）========
+    if (purchaseOrActive === '1' && purchaseComplete === '1' && status === 'ACTIVE') {
+      // 已经分别设置了 purchaseFieldsComplete 和 status，需要转成 OR
+      const baseConditions = { ...where };
+      delete baseConditions.purchaseFieldsComplete;
+      delete baseConditions.status;
+      // 合并 AND(baseConditions) + OR(purchaseFieldsComplete, status)
+      where.AND = [
+        baseConditions,
+        { OR: [{ purchaseFieldsComplete: true }, { status: 'ACTIVE' }] },
+      ];
+      // 清除顶层已转入 AND 的条件
+      delete where.purchaseFieldsComplete;
+      delete where.status;
+    }
+
+    // ======== 模块引用过滤：各部门字段补全后才可在对应模块中引用 ========
+    if (module === 'purchase') {
+      where.purchaseFieldsComplete = true;
+    } else if (module === 'sales') {
+      where.salesFieldsComplete = true;
+    }
+    // module 不传或为其他值时不过滤（产品管理页面看全部）
 
     const [list, total] = await Promise.all([
       prisma.material.findMany({
@@ -452,7 +646,7 @@ router.get('/materials', async (req, res, next) => {
           group: { select: { id: true, code: true, name: true } },
           materialGrades: { include: { grade: true }, orderBy: { grade: { sortOrder: 'asc' } } },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { code: 'asc' },
       }),
       prisma.material.count({ where }),
     ]);
@@ -465,15 +659,17 @@ router.post('/materials', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_STAFF), as
     const { gradeIds, ...data } = req.body;
     if (!data.name) return res.status(400).json({ success: false, message: '产品名称必填' });
     if (!data.code) data.code = await genCode('material', 'MAT');
-    // 编码唯一性校验
     else {
       const conflict = await prisma.material.findFirst({ where: { code: data.code } });
       if (conflict) return res.status(400).json({ success: false, message: `编码「${data.code}」已被产品「${conflict.name}」使用，无法保存` });
     }
     if (data.barcode === '') data.barcode = null;
     if (data.groupId === '') data.groupId = null;
+    if (!data.orgCode && req.orgCode) data.orgCode = req.orgCode;
 
-    // 先创建物料
+    // 新增产品默认状态为 DRAFT，各部门补全字段后自动变 ACTIVE
+    if (!data.status) data.status = 'DRAFT';
+
     const mat = await prisma.material.create({
       data,
       include: {
@@ -503,12 +699,46 @@ router.post('/materials', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_STAFF), as
   } catch (err) { next(err); }
 });
 
-router.put('/materials/:id', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_STAFF), async (req, res, next) => {
+// PUT: 更新物料（按部门权限控制字段，采购部/国内贸易部及其子部门/仓储角色均可访问）
+router.put('/materials/:id', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_MANAGER, ROLES.PURCHASE_STAFF, ROLES.SALES_MANAGER, ROLES.SALES_STAFF, ROLES.SALES_REP, ROLES.WAREHOUSE_MANAGER, ROLES.WAREHOUSE_STAFF, ROLES.HR_ADMIN, ROLES.HR, ROLES.EMPLOYEE), async (req, res, next) => {
   try {
     // 只提取可更新的字段，过滤掉 id/createdAt/updatedAt/grades 等只读字段
     let { id, createdAt, updatedAt, latestReceiptDate, group, materialGrades, gradeIds, ...data } = req.body;
     if (data.barcode === '') data.barcode = null;
     if (data.groupId === '') data.groupId = null;
+
+    // ======== 字段级权限：各部门只能改自己负责的字段（按部门判断，非角色）========
+    const userRole = req.user.role;
+    const isSuperAdmin = userRole === 'SUPER_ADMIN';
+    const userDeptName = req.user.department?.name || '';
+    const userDeptId = req.user.departmentId;
+    const userDeptParentId = req.user.department?.parentId || '';
+    // 国内贸易部 ID 及其子部门（parentId 指向 国内贸易部）
+    const SALES_ROOT_DEPT_ID = 'cmrndohgx0005ndd6rjnqbu0y';
+    const isPurchase = isSuperAdmin || userDeptName === '采购部';
+    const isSales = isSuperAdmin || userDeptId === SALES_ROOT_DEPT_ID || userDeptParentId === SALES_ROOT_DEPT_ID;
+    const isWarehouse = isSuperAdmin || userRole === 'WAREHOUSE_MANAGER' || userRole === 'WAREHOUSE_STAFF';
+
+    // 各部门负责的字段
+    const purchaseFields = ['purchaseUnit', 'purchaseConversionFactor', 'shelfLifeDays', 'purchaseLeadTime'];
+    const salesFields = ['salesUnit', 'salesConversionFactor', 'localSalesUnit', 'localSalesConversionFactor', 'guidePercent'];
+    const warehouseFields = ['barcode', 'storageTempMin', 'storageTempMax'];
+
+    if (!isSuperAdmin) {
+      // 非超管：只保留本部门字段
+      const allowedFields = [];
+      if (isPurchase) allowedFields.push(...purchaseFields);
+      if (isSales) allowedFields.push(...salesFields);
+      if (isWarehouse) allowedFields.push(...warehouseFields);
+      // 保留 gradeIds（共用）
+      allowedFields.push('gradeIds');
+
+      const filteredData = {};
+      for (const key of allowedFields) {
+        if (key in data) filteredData[key] = data[key];
+      }
+      data = filteredData;
+    }
 
     // 如果要修改编码，先检查是否与其他物料冲突
     if (data.code) {
@@ -524,7 +754,45 @@ router.put('/materials/:id', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_STAFF),
       }
     }
 
-    // 更新物料基础字段
+    // ======== 自动计算字段组完成状态 ========
+    // 先查出当前物料的完整数据，合并本次修改后判断
+    const current = await prisma.material.findUnique({ where: { id: req.params.id } });
+    if (!current) return res.status(404).json({ success: false, message: '产品不存在' });
+
+    const merged = { ...current, ...data };
+
+    // 采购字段全部非空 → purchaseFieldsComplete = true
+    // 注意：0 对 shelfLifeDays/purchaseLeadTime 是有效值（0天保质期/0天采购周期），
+    // 但对 purchaseConversionFactor 无效（0倍换算无意义）
+    data.purchaseFieldsComplete = purchaseFields.every(f => {
+      const val = merged[f];
+      const isNotEmpty = val !== null && val !== undefined && val !== '';
+      if (f === 'purchaseConversionFactor') return isNotEmpty && val > 0;
+      return isNotEmpty;
+    });
+
+    // 销售字段全部非空 → salesFieldsComplete = true
+    // 注意：0 对 guidePercent 是有效值（0% 指导百分比），但对其他换算/单位字段无效
+    data.salesFieldsComplete = salesFields.every(f => {
+      const val = merged[f];
+      const isNotEmpty = val !== null && val !== undefined && val !== '';
+      if (f === 'salesConversionFactor' || f === 'localSalesConversionFactor') return isNotEmpty && val > 0;
+      return isNotEmpty;
+    });
+
+    // 仓储字段全部非空 → warehouseFieldsComplete = true（仓储组为可选）
+    data.warehouseFieldsComplete = warehouseFields.every(f => {
+      const val = merged[f];
+      return val !== null && val !== undefined && val !== '';
+    });
+
+    // 基础字段 + 采购 + 销售字段都补全后 → 自动激活
+    const basicComplete = merged.name && merged.code && merged.unit;
+    if (basicComplete && data.purchaseFieldsComplete && data.salesFieldsComplete) {
+      data.status = 'ACTIVE';
+    }
+
+    // 更新物料
     const mat = await prisma.material.update({
       where: { id: req.params.id },
       data,
@@ -536,16 +804,13 @@ router.put('/materials/:id', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_STAFF),
 
     // 替换等级关联
     if (gradeIds !== undefined) {
-      // 删除旧的关联
       await prisma.materialGradeMapping.deleteMany({ where: { materialId: req.params.id } });
-      // 插入新的关联
       if (gradeIds && Array.isArray(gradeIds) && gradeIds.length > 0) {
         await prisma.materialGradeMapping.createMany({
           data: gradeIds.filter(gid => gid).map(gid => ({ materialId: req.params.id, gradeId: gid })),
           skipDuplicates: true,
         });
       }
-      // 重新查询带等级信息
       const matWithGrades = await prisma.material.findUnique({
         where: { id: req.params.id },
         include: {
@@ -677,13 +942,13 @@ router.delete('/materials/:id', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_MANA
       refs.push({ type: '价格清单', count: priceLists.length, items: items.slice(0, MAX_ITEMS), more: priceLists.length > MAX_ITEMS ? priceLists.length - MAX_ITEMS : 0 });
     }
 
-    // 采购员分配 — 通过 PurchaserMaterialItem → PurchaserAssignment → user → employee
+    // 采购员分配 — 通过 PurchaserMaterialItem → PurchaserAssignment → employee
     const purchaserItems = await prisma.purchaserMaterialItem.findMany({
       where: { materialId: id },
-      select: { assignment: { select: { status: true, user: { select: { employee: { select: { name: true } } } } } } },
+      select: { assignment: { select: { status: true, employee: { select: { name: true } } } } },
     });
     if (purchaserItems.length > 0) {
-      const items = purchaserItems.map(pm => ({ code: pm.assignment.user?.employee?.name || '-', status: pm.assignment.status }));
+      const items = purchaserItems.map(pm => ({ code: pm.assignment.employee?.name || '-', status: pm.assignment.status }));
       refs.push({ type: '采购员分配', count: purchaserItems.length, items: items.slice(0, MAX_ITEMS), more: purchaserItems.length > MAX_ITEMS ? purchaserItems.length - MAX_ITEMS : 0 });
     }
 
@@ -764,6 +1029,8 @@ router.get('/customers', async (req, res, next) => {
   try {
     const { page = 1, pageSize = 20, keyword = '', status = '', salesRepId = '', mine = '' } = req.query;
     const where = {};
+    // 组织过滤
+    Object.assign(where, getOrgFilter(req));
     if (keyword) {
       where.OR = [{ name: { contains: keyword } }, { code: { contains: keyword } }, { contactPerson: { contains: keyword } }];
     }
@@ -839,6 +1106,8 @@ router.post('/customers', authorize(ROLES.SUPER_ADMIN, ROLES.SALES_MANAGER, ROLE
     }
     if (data.salesRepId === '') data.salesRepId = null;
     if (data.departmentId === '') data.departmentId = null;
+    // 自动填充组织编码
+    if (!data.orgCode && req.orgCode) data.orgCode = req.orgCode;
     const cust = await prisma.customer.create({
       data,
       include: { addresses: true },
@@ -996,6 +1265,8 @@ router.get('/suppliers', async (req, res, next) => {
   try {
     const { page = 1, pageSize = 20, keyword = '', status = '' } = req.query;
     const where = {};
+    // 组织过滤
+    Object.assign(where, getOrgFilter(req));
     if (keyword) {
       where.OR = [{ name: { contains: keyword } }, { code: { contains: keyword } }, { contactPerson: { contains: keyword } }];
     }
@@ -1018,12 +1289,15 @@ router.post('/suppliers', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_STAFF, ROL
   try {
     const data = req.body;
     if (!data.name) return res.status(400).json({ success: false, message: '供应商名称必填' });
+    if (!data.bankName) return res.status(400).json({ success: false, message: '开户行必填' });
+    if (!data.businessLicenseFile) return res.status(400).json({ success: false, message: '营业执照必填' });
     if (!data.code) data.code = await genCode('supplier', 'SUP');
     // 编码唯一性校验
     else {
       const conflict = await prisma.supplier.findFirst({ where: { code: data.code } });
       if (conflict) return res.status(400).json({ success: false, message: `编码「${data.code}」已被供应商「${conflict.name}」使用，无法保存` });
     }
+    if (!data.orgCode && req.orgCode) data.orgCode = req.orgCode;
     const sup = await prisma.supplier.create({ data });
     res.json({ success: true, data: sup });
   } catch (err) { next(err); }
@@ -1032,12 +1306,18 @@ router.post('/suppliers', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_STAFF, ROL
 router.put('/suppliers/:id', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_STAFF, ROLES.PURCHASE_MANAGER), async (req, res, next) => {
   try {
     const data = req.body;
+    if (data.bankName !== undefined && !data.bankName) return res.status(400).json({ success: false, message: '开户行必填' });
+    if (data.businessLicenseFile !== undefined && !data.businessLicenseFile) return res.status(400).json({ success: false, message: '营业执照必填' });
     // 编码唯一性校验
     if (data.code) {
       const conflict = await prisma.supplier.findFirst({ where: { code: data.code, id: { not: req.params.id } } });
       if (conflict) return res.status(400).json({ success: false, message: `编码「${data.code}」已被其他供应商「${conflict.name}」使用，无法保存` });
     }
-    const sup = await prisma.supplier.update({ where: { id: req.params.id }, data });
+    const sup = await prisma.supplier.update({ where: { id: req.params.id }, data: {
+      ...data,
+      bankName: data.bankName ?? undefined,
+      businessLicenseFile: data.businessLicenseFile ?? undefined,
+    } });
     res.json({ success: true, data: sup });
   } catch (err) { next(err); }
 });
@@ -1146,105 +1426,65 @@ router.delete('/suppliers/:id', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_MANA
 // 仓库管理
 // ============================================================
 
-// 自动创建 SCM 用户（Portal-only 用户首次被选为仓管员时）
+// 把仓管员 id（可能是 Employee.id 或历史 portal-<email> 标记）解析为 Employee.id
 async function resolvePortalUserId(portalManagerId) {
-  if (!portalManagerId || !portalManagerId.startsWith('portal-')) return portalManagerId;
-  const portalEmail = portalManagerId.replace('portal-', '');
-  const portalPool = getPool();
-  const [portalRows] = await portalPool.execute(
-    'SELECT email, name, employeeNo, departmentName FROM portal_user WHERE email = ?',
-    [portalEmail]
-  );
-  if (portalRows.length === 0) return null;
-  const portalUser = portalRows[0];
-  const employee = await prisma.employee.findFirst({ where: { empNo: portalUser.employeeNo } });
-  const newUser = await prisma.user.create({
-    data: {
-      username: portalUser.employeeNo || portalUser.email.split('@')[0],
-      passwordHash: 'portal-sso-auto-created',  // SSO 登录不依赖本地密码
-      role: 'WAREHOUSE_STAFF',
-      status: 'ACTIVE',
-      employeeId: employee?.id || null,
-    },
-  });
-  return newUser.id;
+  if (!portalManagerId) return portalManagerId;
+  // 兼容旧数据：portal-<email> 标记（已废弃）
+  if (portalManagerId.startsWith('portal-')) {
+    const portalEmail = portalManagerId.replace('portal-', '');
+    const portalPool = getPool();
+    const [portalRows] = await portalPool.execute(
+      'SELECT employeeNo FROM portal_user WHERE email = ?',
+      [portalEmail]
+    );
+    if (portalRows.length === 0) return null;
+    const employee = await prisma.employee.findFirst({ where: { empNo: portalRows[0].employeeNo } });
+    return employee?.id || null;
+  }
+  return portalManagerId;
 }
 
 // 获取可分配为仓管员的用户列表（只显示在 Portal 中角色包含仓储模块权限的用户）
 router.get('/warehouse-users', async (req, res, next) => {
   try {
-    // 1. 从 Portal DB 查出有 SCM 仓储模块权限的用户邮箱（排除超级管理员）
-    const warehouseEmails = await getScmModuleUserEmails(['warehouse'], { excludeSystemAdmin: true });
-    const emailPrefixSet = new Set(warehouseEmails.map((e) => e.split('@')[0].toLowerCase()));
-    const emailSet = new Set(warehouseEmails.map((e) => e.toLowerCase()));
-
-    // 2. 查出所有 SCM ACTIVE 用户（带员工信息含 email）
-    const allUsers = await prisma.user.findMany({
+    // 直接从主数据（SCM employees 表，来自 MDM/HRMS 同步）获取全部在职员工
+    const employees = await prisma.employee.findMany({
       where: { status: 'ACTIVE' },
       select: {
         id: true,
-        username: true,
-        role: true,
-        employee: { select: { id: true, name: true, empNo: true, email: true, department: { select: { name: true } } } },
+        name: true,
+        empNo: true,
+        email: true,
+        department: { select: { name: true } },
       },
-      orderBy: { username: 'asc' },
+      orderBy: { empNo: 'asc' },
     });
 
-    // 3. 仅靠 Portal 权限邮箱匹配过滤（不做角色兜底）
-    const matchedUsers = allUsers.filter((u) => {
-      if (u.employee?.email && emailSet.has(u.employee.email.toLowerCase())) return true;
-      if (emailPrefixSet.has(u.username.toLowerCase())) return true;
-      if (u.employee?.empNo && emailPrefixSet.has(u.employee.empNo.toLowerCase())) return true;
-      return false;
-    });
+    const data = employees.map((emp) => ({
+      id: emp.id,
+      username: emp.empNo,
+      role: 'EMPLOYEE',
+      employee: {
+        id: emp.id,
+        name: emp.name,
+        empNo: emp.empNo,
+        email: emp.email,
+        department: emp.department ? { name: emp.department.name } : { name: '' },
+      },
+    }));
 
-    // 4. Portal 邮箱中未匹配到 SCM 用户的，从 Portal 缓存补充（确保邵玉云等未登录SCM的用户也能显示）
-    const matchedIds = new Set(matchedUsers.map(u => u.id));
-    const unmatchedEmails = warehouseEmails.filter(e => {
-      const prefix = e.split('@')[0].toLowerCase();
-      return !allUsers.some(u =>
-        (u.employee?.email && u.employee.email.toLowerCase() === e.toLowerCase()) ||
-        u.username.toLowerCase() === prefix ||
-        (u.employee?.empNo && u.employee.empNo.toLowerCase() === prefix)
-      );
-    });
-
-    // 为未匹配的 Portal 邹箱，查询 Portal 缓存补充用户信息
-    const portalSupplementUsers = [];
-    if (unmatchedEmails.length > 0) {
-      const portalPool = getPool();
-      const placeholders = unmatchedEmails.map(() => '?').join(',');
-      const [portalRows] = await portalPool.execute(
-        `SELECT email, name, employeeNo, departmentName FROM portal_user WHERE email IN (${placeholders})`,
-        unmatchedEmails
-      );
-      for (const row of portalRows) {
-        portalSupplementUsers.push({
-          id: `portal-${row.email}`,  // 临时 ID，前端显示用
-          username: row.employeeNo || row.email.split('@')[0],
-          role: 'WAREHOUSE_STAFF',
-          employee: {
-            id: null,
-            name: row.name,
-            empNo: row.employeeNo,
-            email: row.email,
-            department: { name: row.departmentName || '' },
-          },
-          isPortalOnly: true,  // 标记为仅 Portal 用户
-        });
-      }
-    }
-
-    res.json({ success: true, data: [...matchedUsers, ...portalSupplementUsers] });
+    res.json({ success: true, data });
   } catch (err) { next(err); }
 });
 
 router.get('/warehouses', async (req, res, next) => {
   try {
+    const where = getOrgFilter(req);
     const warehouses = await prisma.warehouse.findMany({
+      where,
       include: {
         manager: { select: { id: true, name: true, empNo: true } },
-        warehouseManager: { select: { id: true, username: true, employee: { select: { id: true, name: true, empNo: true } } } },
+        warehouseManager: { select: { id: true, name: true, empNo: true, department: { select: { name: true } } } },
         zones: { include: { _count: { select: { locations: true } } } },
         _count: { select: { inventory: true } },
       },
@@ -1260,7 +1500,7 @@ router.post('/warehouses', authorize(ROLES.SUPER_ADMIN, ROLES.WAREHOUSE_STAFF), 
     if (!name) return res.status(400).json({ success: false, message: '仓库名称必填' });
     warehouseManagerId = await resolvePortalUserId(warehouseManagerId);
     const wh = await prisma.warehouse.create({
-      data: { code: code || (await genCode('warehouse', 'WH')), name, address, managerId, warehouseManagerId, isColdStorage: isColdStorage || false, status: status || 'ACTIVE' },
+      data: { code: code || (await genCode('warehouse', 'WH')), name, address, managerId, warehouseManagerId, isColdStorage: isColdStorage || false, status: status || 'ACTIVE', orgCode: req.orgCode || null },
     });
     res.json({ success: true, data: wh });
   } catch (err) { next(err); }
@@ -1446,52 +1686,108 @@ router.get('/data-centers', async (req, res, next) => {
 // 采购员管理 — 采购员与负责物料的分配关系
 // ============================================================
 
-// 获取可分配为采购员的用户列表（只显示在 Portal 中角色包含采购模块权限的用户）
+// 获取可分配为业务员的用户列表（按模块过滤：purchase=采购，sales=销售；默认 purchase）
+// 数据源：直接从 Portal /api/users 拉取（不再走 SCM 自己的 users 表匹配）
+// 返回的 id 含义：customer 用作 salesRepId（employeeId 外键），purchase 用作 userId（userId 外键）
 router.get('/purchaser-users', async (req, res, next) => {
   try {
-    // 1. 从 Portal DB 查出有 SCM 采购模块权限的用户邮箱
-    const purchaseEmails = await getScmModuleUserEmails(['purchase']);
-    const emailPrefixSet = new Set(purchaseEmails.map((e) => e.split('@')[0].toLowerCase()));
-    const emailSet = new Set(purchaseEmails.map((e) => e.toLowerCase()));
+    const { module: mod = 'purchase' } = req.query;
+    // 1. 直接从 Portal 拉取有该模块权限的用户列表
+    const portalUsers = await getPortalUsersByScmModule(mod);
 
-    // 2. 查出所有 SCM ACTIVE 用户（带员工信息含 email）
-    const allUsers = await prisma.user.findMany({
-      where: { status: 'ACTIVE' },
-      select: {
-        id: true,
-        username: true,
-        role: true,
-        employee: { select: { id: true, name: true, empNo: true, email: true, department: { select: { name: true } } } },
+    if (portalUsers.length === 0) {
+      return res.json({ success: true, data: [] });
+    }
+
+    // 2. 多策略匹配 SCM 本地 employees 表（用邮箱 / employeeNo / globalId 任一匹配上即可）
+    const emails = portalUsers.map((u) => u.email).filter(Boolean);
+    const empNos = portalUsers.map((u) => u.employeeNo).filter(Boolean);
+    const globalIds = portalUsers.map((u) => u.globalId).filter(Boolean);
+    const employees = await prisma.employee.findMany({
+      where: {
+        status: 'ACTIVE',
+        OR: [
+          { email: { in: emails } },
+          { empNo: { in: empNos } },
+          { globalId: { in: globalIds } },
+        ],
       },
-      orderBy: { username: 'asc' },
+      select: {
+        id: true, name: true, empNo: true, email: true, globalId: true,
+        department: { select: { name: true } },
+      },
+    });
+    // 三个键都能定位到 Employee
+    const empByEmail = new Map();
+    const empByEmpNo = new Map();
+    const empByGlobalId = new Map();
+    for (const e of employees) {
+      if (e.email) empByEmail.set(e.email.toLowerCase(), e);
+      if (e.empNo) empByEmpNo.set(e.empNo, e);
+      if (e.globalId) empByGlobalId.set(e.globalId, e);
+    }
+    const findEmp = (u) => {
+      if (u.email) {
+        const e = empByEmail.get(u.email.toLowerCase());
+        if (e) return e;
+      }
+      if (u.employeeNo) {
+        const e = empByEmpNo.get(u.employeeNo);
+        if (e) return e;
+      }
+      if (u.globalId) {
+        const e = empByGlobalId.get(u.globalId);
+        if (e) return e;
+      }
+      return null;
+    };
+
+    // 3. 以 Portal 数据为权威源，employeeId 作为业务主键
+    //    业务语义：
+    //    - customer 业务场景：传 employeeId（salesRepId 外键）
+    // 业务语义：
+    //    - id = employeeId（采购员分配的外键）
+    //    - sales 场景下前端直接用 employeeId 作为 salesRepId 外键
+    //    - purchase 场景下前端用 employeeId 作为 PurchaserAssignment 外键
+    //    - 关键：是否登录过 SCM 不再影响分配/业务员资格
+    const result = portalUsers.map((u) => {
+      const emp = findEmp(u);
+      // 找到本地 Employee：传真实 Employee.id（外键有效）
+      // 找不到：传 null（不暴露虚假 id 让前端发出去踩外键）
+      const employeeId = emp?.id || null;
+      return {
+        id: employeeId,
+        employeeId,
+        name: u.name,
+        email: u.email,
+        employeeNo: u.employeeNo,
+        globalId: u.globalId,
+        department: u.employee?.department?.name || u.departmentName || emp?.department?.name || '',
+        position: u.position,
+        _noEmployee: !emp, // 标记没有本地 Employee 映射（HRMS 尚未同步）
+      };
     });
 
-    // 3. 匹配过滤（与 SSO 登录使用相同的多策略匹配）
-    //    策略a: Employee.email 精确匹配 Portal userEmail
-    //    策略b: username = Portal userEmail 前缀（如 admin@hrms.com → admin）
-    //    策略c: Employee.empNo 匹配 Portal userEmail 前缀（如 emp003@hrms.internal → EMP003）
-    //    策略d: SCM role 为采购相关角色作为兜底（PURCHASE_MANAGER/PURCHASE_STAFF/SUPER_ADMIN）
-    //           适用于 SSO 登录尚未更新角色但种子数据已标记为采购角色的用户
-    const PURCHASE_ROLES = ['SUPER_ADMIN', 'PURCHASE_MANAGER', 'PURCHASE_STAFF'];
-    const filteredUsers = allUsers.filter((u) => {
-      if (u.employee?.email && emailSet.has(u.employee.email.toLowerCase())) return true;
-      if (emailPrefixSet.has(u.username.toLowerCase())) return true;
-      if (u.employee?.empNo && emailPrefixSet.has(u.employee.empNo.toLowerCase())) return true;
-      if (PURCHASE_ROLES.includes(u.role)) return true;
-      return false;
-    });
-
-    res.json({ success: true, data: filteredUsers });
+    res.json({ success: true, data: result });
   } catch (err) { next(err); }
 });
 
 // 当前采购员分配的物料ID列表（用于采购计划物料下拉过滤）
+// 通过当前登录用户（User.id）反查其员工 employeeId，再查 PurchaserAssignment
 router.get('/purchaser-assignments/my-materials', authenticate, async (req, res, next) => {
   try {
     const userId = req.user.userId;
-    // 查当前用户的 PurchaserAssignment（ACTIVE）
+    // 当前用户的 employeeId
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { employeeId: true },
+    });
+    if (!currentUser?.employeeId) {
+      return res.json({ success: true, data: { materialIds: [], restricted: false } });
+    }
+    // 查该员工的 PurchaserAssignment（ACTIVE）
     const assignment = await prisma.purchaserAssignment.findFirst({
-      where: { userId, status: 'ACTIVE' },
+      where: { employeeId: currentUser.employeeId, status: 'ACTIVE' },
       include: {
         materials: { select: { materialId: true } },
       },
@@ -1513,17 +1809,17 @@ router.get('/purchaser-assignments', async (req, res, next) => {
     if (status) where.status = status;
     if (keyword) {
       where.OR = [
-        { user: { username: { contains: keyword } } },
-        { user: { employee: { name: { contains: keyword } } } },
+        { employee: { name: { contains: keyword } } },
+        { employee: { empNo: { contains: keyword } } },
       ];
     }
     const list = await prisma.purchaserAssignment.findMany({
       where,
       include: {
-        user: {
+        employee: {
           select: {
-            id: true, username: true, role: true,
-            employee: { select: { name: true, empNo: true, department: { select: { name: true } } } },
+            id: true, name: true, empNo: true, email: true,
+            department: { select: { name: true } },
           },
         },
         materials: {
@@ -1544,10 +1840,10 @@ router.get('/purchaser-assignments/:id', async (req, res, next) => {
     const assignment = await prisma.purchaserAssignment.findUnique({
       where: { id: req.params.id },
       include: {
-        user: {
+        employee: {
           select: {
-            id: true, username: true, role: true,
-            employee: { select: { name: true, empNo: true, department: { select: { name: true } } } },
+            id: true, name: true, empNo: true, email: true,
+            department: { select: { name: true } },
           },
         },
         materials: {
@@ -1562,27 +1858,27 @@ router.get('/purchaser-assignments/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// 新增采购员分配（选用户 + 批量选物料）
+// 新增采购员分配（选员工 + 批量选物料）
 router.post('/purchaser-assignments', authorize(ROLES.SUPER_ADMIN, ROLES.PURCHASE_MANAGER, ROLES.PURCHASE_STAFF), async (req, res, next) => {
   try {
-    const { userId, materialIds = [], remark } = req.body;
-    if (!userId) return res.status(400).json({ success: false, message: '请选择采购员' });
+    const { employeeId, materialIds = [], remark } = req.body;
+    if (!employeeId) return res.status(400).json({ success: false, message: '请选择采购员' });
     if (!materialIds.length) return res.status(400).json({ success: false, message: '请至少选择一个物料' });
 
-    // 检查该用户是否已有分配记录
-    const existing = await prisma.purchaserAssignment.findUnique({ where: { userId } });
-    if (existing) return res.status(400).json({ success: false, message: '该用户已存在采购员分配记录，请直接编辑' });
+    // 检查该员工是否已有分配记录
+    const existing = await prisma.purchaserAssignment.findUnique({ where: { employeeId } });
+    if (existing) return res.status(400).json({ success: false, message: '该员工已存在采购员分配记录，请直接编辑' });
 
     const assignment = await prisma.purchaserAssignment.create({
       data: {
-        userId,
+        employeeId,
         remark: remark || null,
         materials: {
           create: materialIds.map((materialId) => ({ materialId })),
         },
       },
       include: {
-        user: { select: { id: true, username: true, employee: { select: { name: true } } } },
+        employee: { select: { id: true, name: true, empNo: true, email: true } },
         materials: { include: { material: { select: { id: true, code: true, name: true } } } },
       },
     });
@@ -1612,7 +1908,7 @@ router.put('/purchaser-assignments/:id', authorize(ROLES.SUPER_ADMIN, ROLES.PURC
         },
       },
       include: {
-        user: { select: { id: true, username: true, employee: { select: { name: true } } } },
+        employee: { select: { id: true, name: true, empNo: true, email: true } },
         materials: { include: { material: { select: { id: true, code: true, name: true } } } },
       },
     });
@@ -1626,30 +1922,31 @@ router.delete('/purchaser-assignments/:id', authorize(ROLES.SUPER_ADMIN, ROLES.P
     const id = req.params.id;
     const existing = await prisma.purchaserAssignment.findUnique({
       where: { id },
-      include: { user: { include: { employee: true } } },
+      include: { employee: true },
     });
     if (!existing) return res.status(404).json({ success: false, message: '采购员分配不存在' });
 
-    const userId = existing.userId;
-    const employeeId = existing.user?.employeeId;
+    const employeeId = existing.employeeId;
     const refs = [];
     const MAX_ITEMS = 5;
 
-    // 1. 采购计划 — PurchasePlan.assigneeId = userId
-    const purchasePlans = await prisma.purchasePlan.findMany({
-      where: { assigneeId: userId },
-      select: { planNo: true, title: true, status: true },
-    });
-    if (purchasePlans.length > 0) {
-      refs.push({
-        type: '采购计划',
-        count: purchasePlans.length,
-        items: purchasePlans.slice(0, MAX_ITEMS).map(p => ({ code: p.planNo, title: p.title, status: p.status })),
-        more: purchasePlans.length > MAX_ITEMS ? purchasePlans.length - MAX_ITEMS : 0,
+    // 1. 采购计划 — PurchasePlan.assigneeId 直接引用 Employee.id
+    if (employeeId) {
+      const purchasePlans = await prisma.purchasePlan.findMany({
+        where: { assigneeId: employeeId },
+        select: { planNo: true, title: true, status: true },
       });
+      if (purchasePlans.length > 0) {
+        refs.push({
+          type: '采购计划',
+          count: purchasePlans.length,
+          items: purchasePlans.slice(0, MAX_ITEMS).map(p => ({ code: p.planNo, title: p.title, status: p.status })),
+          more: purchasePlans.length > MAX_ITEMS ? purchasePlans.length - MAX_ITEMS : 0,
+        });
+      }
     }
 
-    // 2. 采购订单 — PurchaseOrder.buyerId = employeeId（通过 User → Employee）
+    // 2. 采购订单 — PurchaseOrder.buyerId = employeeId（直接按 employeeId 查）
     if (employeeId) {
       const purchaseOrders = await prisma.purchaseOrder.findMany({
         where: { buyerId: employeeId },
@@ -2270,6 +2567,15 @@ router.get('/stock-monitor/summary', async (req, res, next) => {
         warehouseStats,
       },
     });
+  } catch (err) { next(err); }
+});
+
+// ======== 供应商营业执照上传 ========
+router.post('/suppliers/upload-license', authenticate, supplierUpload.single('file'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, message: '请选择文件' });
+    const filePath = `/uploads/supplier/${req.file.filename}`;
+    res.json({ success: true, data: { url: filePath, filename: req.file.originalname } });
   } catch (err) { next(err); }
 });
 

@@ -70,11 +70,18 @@ export async function syncEmployeesFromHrms() {
     let updated = 0;
 
     for (const row of rows) {
-      const existing = await prisma.masterEmployee.findUnique({
+      // 优先按 hrmsId 查找，兼容按 employeeNo（处理跨环境数据 hrmsId 不同的旧记录）
+      let existing = await prisma.masterEmployee.findUnique({
         where: { hrmsId: row.id },
       });
+      if (!existing) {
+        existing = await prisma.masterEmployee.findUnique({
+          where: { employeeNo: row.employeeNo },
+        });
+      }
 
       const data = {
+        hrmsId: row.id,
         employeeNo: row.employeeNo,
         name: row.name,
         gender: row.gender || 'MALE',
@@ -89,15 +96,14 @@ export async function syncEmployeesFromHrms() {
       };
 
       if (existing) {
+        // 若通过 employeeNo 找到但 hrmsId 不同，data 中已包含正确的 hrmsId，update 会一并更新
         await prisma.masterEmployee.update({
-          where: { hrmsId: row.id },
+          where: { id: existing.id },
           data,
         });
         updated++;
       } else {
-        await prisma.masterEmployee.create({
-          data: { hrmsId: row.id, ...data },
-        });
+        await prisma.masterEmployee.create({ data });
         created++;
       }
     }

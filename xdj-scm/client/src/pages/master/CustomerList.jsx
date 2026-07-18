@@ -4,13 +4,16 @@ import {
   TableContainer, TableHead, TableRow, Paper, IconButton, Dialog, DialogTitle,
   DialogContent, DialogActions, Grid, MenuItem, InputAdornment, TablePagination,
   Chip, Stack, FormControl, InputLabel, Select, Collapse, Fade, Tooltip, Autocomplete,
+  CircularProgress,
 } from '@mui/material';
 import {
   Add, Edit, Delete, Search, RestartAlt, FilterList, Business, PersonAdd,
   CheckCircle, Block, ExpandMore, ExpandLess, ToggleOn, ToggleOff, Person,
+  Map as MapIcon,
 } from '@mui/icons-material';
 import api from '../../lib/api';
 import { useAuthStore } from '../../store/authStore';
+import MapPicker from '../../components/MapPicker';
 
 const STATUS_MAP = { ACTIVE: '启用', INACTIVE: '停用' };
 
@@ -35,6 +38,9 @@ export default function CustomerList() {
   const [loading, setLoading] = useState(false);
   const [employees, setEmployees] = useState([]);
   const [formErrors, setFormErrors] = useState({});
+
+  // 地图选点
+  const [mapOpen, setMapOpen] = useState(false);
 
   // 金蝶客户下拉搜索
   const [kdCustomers, setKdCustomers] = useState([]);
@@ -89,12 +95,14 @@ export default function CustomerList() {
   useEffect(() => { loadStats(); }, [loadStats]);
   useEffect(() => {
     if (canAssignSalesRep) {
-      api.get('/master/purchaser-users').then(res => {
-        const users = (res.data || []).filter(u => u.employee).map(u => ({
-          id: u.employee.id,
-          name: u.employee.name,
-          department: u.employee.department?.name,
+      api.get('/master/purchaser-users', { params: { module: 'sales' } }).then(res => {
+        const users = (res.data || []).map(u => ({
+          id: u.id,
+          name: u.name,
+          department: u.department,
           username: u.username,
+          email: u.email,
+          employeeNo: u.employeeNo,
         }));
         setEmployees(users);
       }).catch(() => {});
@@ -112,10 +120,13 @@ export default function CustomerList() {
 
   const handleOpen = (data = null) => {
     setDialog({ open: true, data });
+    // 业务员默认值：当前登录用户如果有销售模块权限则默认自己，否则为空
+    const currentEmpId = user?.employee?.id;
+    const hasSalesPerm = user?.role === 'SUPER_ADMIN' || (user?.permissions || []).includes('sales');
     setForm(data || {
       name: '', contactPerson: '', contactPhone: '', address: '',
       creditLimit: '', creditPeriod: '', status: 'ACTIVE', currency: '',
-      salesRepId: user?.employeeId || '',
+      salesRepId: currentEmpId && hasSalesPerm ? currentEmpId : '',
     });
     // 重置金蝶客户搜���状态并预加载
     setKdCustomerSelected(data ? { code: data.code, name: data.name, _kdCode: data.code } : null);
@@ -151,6 +162,7 @@ export default function CustomerList() {
     if (!form.name?.trim()) errors.name = '请输入客户名称';
     if (!form.contactPerson?.trim()) errors.contactPerson = '必填';
     if (!form.contactPhone?.trim()) errors.contactPhone = '必填';
+    if (!form.address?.trim()) errors.address = '必填';
     if (form.creditLimit === '' || form.creditLimit === null || form.creditLimit === undefined) errors.creditLimit = '必填';
     if (form.creditPeriod === '' || form.creditPeriod === null || form.creditPeriod === undefined) errors.creditPeriod = '必填';
     if (canAssignSalesRep && (!form.salesRepId || form.salesRepId === '')) errors.salesRepId = '必填';
@@ -501,8 +513,21 @@ export default function CustomerList() {
                 error={!!formErrors.contactPhone} helperText={formErrors.contactPhone || ''} />
             </Grid>
             <Grid item xs={12}>
-              <TextField fullWidth size="small" label="地址" value={form.address || ''}
-                onChange={(e) => setForm({ ...form, address: e.target.value })} />
+              <TextField fullWidth size="small" label="地址 *" value={form.address || ''}
+                onChange={(e) => { setForm({ ...form, address: e.target.value }); setFormErrors({ ...formErrors, address: undefined }); }}
+                placeholder="点击右侧地图图标选点，或手动输入"
+                error={!!formErrors.address} helperText={formErrors.address || ''}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <Tooltip title="在地图上选择地址">
+                        <IconButton size="small" onClick={() => setMapOpen(true)} edge="end">
+                          <MapIcon fontSize="small" color="primary" />
+                        </IconButton>
+                      </Tooltip>
+                    </InputAdornment>
+                  ),
+                }} />
             </Grid>
             <Grid item xs={6}>
               <TextField fullWidth size="small" type="number" label="信用额度 *" value={form.creditLimit ?? ''}
@@ -530,10 +555,10 @@ export default function CustomerList() {
                   fullWidth
                   size="small"
                   options={employees}
-                  getOptionLabel={(opt) => `${opt.username || ''}${opt.name ? ' - ' + opt.name : ''}${opt.department ? ' (' + opt.department + ')' : ''}`}
+                  getOptionLabel={(opt) => `${opt.employeeNo || opt.username || ''}${opt.name ? ' - ' + opt.name : ''}${opt.department ? ' (' + opt.department + ')' : ''}`}
                   value={employees.find(e => e.id === form.salesRepId) || null}
                   onChange={(_, v) => { setForm({ ...form, salesRepId: v?.id || null }); setFormErrors({ ...formErrors, salesRepId: undefined }); }}
-                  renderInput={(params) => <TextField {...params} label="业务员 *" size="small" placeholder="拥有采购模块权限的用户"
+                  renderInput={(params) => <TextField {...params} label="业务员 *" size="small" placeholder="拥有销售管理模块权限的用户"
                     error={!!formErrors.salesRepId} helperText={formErrors.salesRepId || ''} />}
                   isOptionEqualToValue={(opt, val) => opt.id === val?.id}
                 />
@@ -546,6 +571,18 @@ export default function CustomerList() {
           <Button variant="contained" onClick={handleSave}>保存</Button>
         </DialogActions>
       </Dialog>
+
+      {/* 地图选点 */}
+      <MapPicker
+        open={mapOpen}
+        onClose={() => setMapOpen(false)}
+        onConfirm={(data) => {
+          setForm({ ...form, address: data.address });
+          setFormErrors({ ...formErrors, address: undefined });
+          setMapOpen(false);
+        }}
+        title="选择客户地址"
+      />
 
       {/* ===== 删除引用详情弹窗 ===== */}
       <Dialog open={refDialog.open} onClose={() => setRefDialog({ open: false, message: '', references: [] })} maxWidth="md" fullWidth>

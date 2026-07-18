@@ -279,7 +279,7 @@ export default function RoleManage() {
                     ) : (
                       <Tooltip title="编辑"><IconButton size="small" onClick={() => openEdit(role)}><Edit fontSize="small" /></IconButton></Tooltip>
                     )}
-                    <Tooltip title="删除"><IconButton size="small" onClick={() => handleDelete(role)} disabled={role.isSystem}><Delete fontSize="small" /></IconButton></Tooltip>
+                    <Tooltip title={role._count?.userRoles > 0 ? `已分配给 ${role._count.userRoles} 个用户，无法删除` : '删除'}><span><IconButton size="small" onClick={() => handleDelete(role)} disabled={role.isSystem || role._count?.userRoles > 0}><Delete fontSize="small" /></IconButton></span></Tooltip>
                   </TableCell>
                 </TableRow>
               ))}

@@ -165,6 +165,21 @@ router.post('/payable', authorize(ROLES.FINANCE_STAFF, ROLES.SUPER_ADMIN), async
   } catch (err) { next(err); }
 });
 
+// 提交应付账款 → SUBMITTED 已提交待付款
+router.put('/payable/:id/submit', authorize(ROLES.FINANCE_STAFF, ROLES.SUPER_ADMIN), async (req, res, next) => {
+  try {
+    const ap = await prisma.accountsPayable.findUnique({ where: { id: req.params.id } });
+    if (!ap) return res.status(404).json({ success: false, message: '应付账款不存在' });
+    if (ap.status !== 'PENDING') return res.status(400).json({ success: false, message: `当前状态为「${ap.status}」，仅待付款状态可提交` });
+
+    const updated = await prisma.accountsPayable.update({
+      where: { id: req.params.id },
+      data: { status: 'SUBMITTED' },
+    });
+    res.json({ success: true, data: updated, message: '已提交待付款' });
+  } catch (err) { next(err); }
+});
+
 // 采购入库时自动创建应付 — 内部调用接口
 router.post('/payable/auto', async (req, res, next) => {
   try {

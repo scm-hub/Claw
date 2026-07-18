@@ -93,7 +93,7 @@ export const listEmployees = async ({ page = 1, pageSize = 10, search, departmen
       include: { department: true, position: { select: { id: true, name: true, code: true } }, user: { select: { role: true } } },
       skip: (page - 1) * pageSize,
       take: pageSize,
-      orderBy: { createdAt: 'desc' },
+      orderBy: { employeeNo: 'asc' },
     }),
   ]);
   return { page, pageSize, total, data };
@@ -136,6 +136,13 @@ export const createEmployee = async (data) => {
   }
   if (!empData.departmentId) {
     throw new AppError('请选择所属部门', 400);
+  }
+  // 身份证号重复验证
+  if (empData.idCard) {
+    const existing = await prisma.employee.findFirst({ where: { idCard: empData.idCard }, select: { id: true, name: true } });
+    if (existing) {
+      throw new AppError(`身份证号「${empData.idCard}」已被员工「${existing.name}」使用，不能重复`, 400);
+    }
   }
 
   // 类型转换
@@ -182,7 +189,7 @@ export const createEmployee = async (data) => {
 
   // 自动创建登录账号
   const accountEmail = emp.email || `${employeeNo}@hrms.internal`;
-  const accountPassword = reqAccountPassword || password || '123456';
+  const accountPassword = reqAccountPassword || password || (empData.idCard ? empData.idCard.slice(-6) : '123456');
   const accountRole = reqAccountRole || 'EMPLOYEE';
   const hashedPassword = await bcrypt.hash(accountPassword, 10);
   const user = await prisma.user.create({
@@ -220,6 +227,16 @@ export const updateEmployee = async (id, data) => {
   if (updateData.birthday !== undefined) {
     updateData.birthday = updateData.birthday || null;
     if (updateData.birthday) updateData.birthday = new Date(updateData.birthday);
+  }
+  // 身份证号重复验证（排除自己）
+  if (updateData.idCard) {
+    const existing = await prisma.employee.findFirst({
+      where: { idCard: updateData.idCard, id: { not: id } },
+      select: { id: true, name: true },
+    });
+    if (existing) {
+      throw new AppError(`身份证号「${updateData.idCard}」已被员工「${existing.name}」使用，不能重复`, 400);
+    }
   }
   // 新字段类型转换
   if (updateData.hasPrivateCar !== undefined) {
@@ -614,6 +631,16 @@ export const importEmployees = async (buffer) => {
       const genderRaw = String(row['性别(男/女)'] || row['性别'] || '男').trim();
       const gender = genderMap[genderRaw] || 'MALE';
       const idCard = String(row['身份证号'] || '').trim();
+
+      // 身份证号重复验证
+      if (idCard) {
+        const existing = await prisma.employee.findFirst({ where: { idCard }, select: { id: true, name: true } });
+        if (existing) {
+          results.errors.push({ row: rowNum, error: `身份证号「${idCard}」已被员工「${existing.name}」使用` });
+          results.failed++;
+          continue;
+        }
+      }
       const birthdayRaw = String(row['出生日期(YYYY-MM-DD)'] || row['出生日期'] || '').trim();
       const ethnicity = String(row['民族'] || '').trim();
       const politicalStatus = String(row['政治面貌'] || '').trim();
@@ -692,7 +719,8 @@ export const importEmployees = async (buffer) => {
       const accountEmail = email || `${employeeNo}@hrms.internal`;
       const existingUser = await prisma.user.findUnique({ where: { email: accountEmail } });
       if (!existingUser) {
-        const hashedPassword = await bcrypt.hash('123456', 10);
+        const importPassword = idCard ? idCard.slice(-6) : '123456';
+        const hashedPassword = await bcrypt.hash(importPassword, 10);
         await prisma.user.create({
           data: {
             email: accountEmail,

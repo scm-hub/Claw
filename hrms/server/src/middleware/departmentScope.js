@@ -2,9 +2,8 @@
  * 部门数据范围过滤工具
  *
  * 规则：
- *  - SUPER_ADMIN / HR_ADMIN → 不过滤，可看全部数据
- *  - 部门负责人（Department.managerId === user.employeeId）→ 看本部门及子部门
- *  - 普通 EMPLOYEE/MANAGER → 只看自己所在部门（不含子部门）
+ *  - SUPER_ADMIN → 不过滤，可看全部数据
+ *  - 其他所有角色（含 HR_ADMIN）→ 看本部门 + 所有子部门
  *  - 未登录或无部门信息 → 不过滤（交给业务层判断）
  */
 
@@ -38,11 +37,50 @@ async function isDepartmentManager(employeeId) {
 export const getDepartmentFilter = (req) => {
   if (!req.user) return null;
   const { role, departmentId } = req.user;
-  // 管理员角色看全部
-  if (role === 'SUPER_ADMIN' || role === 'HR_ADMIN') return null;
-  // 其他角色只看本部门
+  // 仅超级管理员看全部
+  if (role === 'SUPER_ADMIN') return null;
+  // 其他角色返回本部门 ID（调用方应配合 getDeptIdList 获取含子部门的完整列表）
   return departmentId || null;
 };
+
+/**
+ * 递归获取某部门及其所有子部门的 ID 列表
+ * @param {string} deptId 根部门ID
+ * @returns {Promise<string[]>} 包含根部门及所有下级子部门的 ID 数组
+ */
+async function getDeptIdList(deptId) {
+  const result = [deptId];
+  const children = await prisma.department.findMany({
+    where: { parentId: deptId },
+    select: { id: true },
+  });
+  for (const child of children) {
+    const grandChildren = await getDeptIdList(child.id);
+    result.push(...grandChildren);
+  }
+  return result;
+}
+
+// 部门子级缓存（5分钟）
+let _deptIdListCache = new Map();
+let _deptIdListCacheTime = 0;
+
+export async function getDepartmentIdsWithChildren(req) {
+  if (!req.user) return null;
+  const { role, departmentId } = req.user;
+  if (role === 'SUPER_ADMIN') return null;
+  if (!departmentId) return null;
+  // 查缓存
+  const now = Date.now();
+  if (now - _deptIdListCacheTime > CACHE_TTL) {
+    _deptIdListCache = new Map();
+    _deptIdListCacheTime = now;
+  }
+  if (!_deptIdListCache.has(departmentId)) {
+    _deptIdListCache.set(departmentId, await getDeptIdList(departmentId));
+  }
+  return _deptIdListCache.get(departmentId);
+}
 
 /**
  * 异步版本：同时判断是否部门负责人
@@ -52,7 +90,7 @@ export const getDepartmentFilter = (req) => {
 export const getDepartmentFilterAsync = async (req) => {
   if (!req.user) return { departmentId: null, isDeptManager: false };
   const { role, departmentId, employeeId } = req.user;
-  if (role === 'SUPER_ADMIN' || role === 'HR_ADMIN') {
+  if (role === 'SUPER_ADMIN') {
     return { departmentId: null, isDeptManager: false };
   }
   const isDeptMgr = employeeId ? await isDepartmentManager(employeeId) : false;

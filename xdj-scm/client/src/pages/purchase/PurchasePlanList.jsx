@@ -24,6 +24,7 @@ const STATUS_MAP = {
   APPROVED: { label: '已批准', color: 'success' },
   REJECTED: { label: '已驳回', color: 'error' },
   CONFIRMED: { label: '已确认', color: 'info' },
+  CANCELLED: { label: '已作废', color: 'error' },
 };
 
 const PLAN_TYPE_MAP = {
@@ -45,7 +46,7 @@ export default function PurchasePlanList() {
   const [keyword, setKeyword] = useState('');
   const [status, setStatus] = useState('');
   const [planType, setPlanType] = useState('');
-  const [stats, setStats] = useState({ total: 0, draft: 0, pending: 0, approved: 0 });
+  const [stats, setStats] = useState({ total: 0, draft: 0, pending: 0, approved: 0, confirmed: 0, cancelled: 0 });
 
   // 弹窗与展开
   const [dialog, setDialog] = useState({ open: false, data: null });
@@ -65,7 +66,7 @@ export default function PurchasePlanList() {
 
   // 分配 & 转发
   const [allocateDialog, setAllocateDialog] = useState({ open: false, loading: false, result: null });
-  const [forwardDialog, setForwardDialog] = useState({ open: false, loading: false, sourcePlan: null, items: [], selectedIds: [], targetUserId: '', purchasers: [] });
+  const [forwardDialog, setForwardDialog] = useState({ open: false, loading: false, sourcePlan: null, items: [], selectedIds: [], targetEmployeeId: '', purchasers: [] });
 
   // 驳回
   const [rejectDialog, setRejectDialog] = useState({ open: false, planId: '', planNo: '', reason: '' });
@@ -130,6 +131,7 @@ export default function PurchasePlanList() {
         pending: all.filter(s => s.status === 'PENDING').length,
         approved: all.filter(s => s.status === 'APPROVED').length,
         confirmed: all.filter(s => s.status === 'CONFIRMED').length,
+        cancelled: all.filter(s => s.status === 'CANCELLED').length,
       });
     } catch (err) { console.error(err); }
   };
@@ -137,7 +139,7 @@ export default function PurchasePlanList() {
   const loadOptions = async () => {
     try {
       const [mRes, dRes, sRes, paRes, gRes] = await Promise.all([
-        api.get('/master/materials?page=1&pageSize=999'),
+        api.get('/master/materials?page=1&pageSize=999&module=purchase'),
         api.get('/master/departments'),
         api.get('/master/suppliers?page=1&pageSize=999'),
         api.get('/master/purchaser-assignments/my-materials'),
@@ -329,8 +331,13 @@ export default function PurchasePlanList() {
     try { await api.delete(`/purchase/plans/${id}`); loadList(); } catch (err) { alert(err.message); }
   };
 
+  const handleCancel = async (id, planNo) => {
+    if (!confirm(`确定作废采购计划「${planNo}」？作废后不可恢复。`)) return;
+    try { await api.put(`/purchase/plans/${id}/cancel`); loadList(); loadChildren(); } catch (err) { alert(err.data?.message || err.message); }
+  };
+
   const handleAllocate = async (id) => {
-    if (!confirm('确认进行订单分配？将根据采购员管理的物料绑定关系，生成子采购计划单。')) return;
+    if (!confirm('确认进行分配？系统将根据采购员管理的物料绑定关系，为未分配的明细生成子采购计划。')) return;
     setAllocateDialog({ open: true, loading: true, result: null });
     try {
       const res = await api.post(`/purchase/plans/${id}/allocate`);
@@ -349,20 +356,20 @@ export default function PurchasePlanList() {
         api.get('/master/purchaser-assignments?status=ACTIVE'),
       ]);
       const items = planRes.data.items || [];
-      const purchasers = (assignmentRes.data || []).map((a) => a.user).filter(Boolean);
-      setForwardDialog({ open: true, loading: false, sourcePlan: item, items, selectedIds: items.map((it) => it.id), targetUserId: '', purchasers });
+      const purchasers = (assignmentRes.data || []).map((a) => a.employee).filter(Boolean);
+      setForwardDialog({ open: true, loading: false, sourcePlan: item, items, selectedIds: items.map((it) => it.id), targetEmployeeId: '', purchasers });
     } catch (err) { alert(err.message); }
   };
 
   const handleForward = async () => {
-    const { sourcePlan, selectedIds, targetUserId } = forwardDialog;
+    const { sourcePlan, selectedIds, targetEmployeeId } = forwardDialog;
     if (!selectedIds.length) { alert('请至少选择一条明细'); return; }
-    if (!targetUserId) { alert('请选择目标采购员'); return; }
+    if (!targetEmployeeId) { alert('请选择目标采购员'); return; }
     setForwardDialog({ ...forwardDialog, loading: true });
     try {
-      const res = await api.post(`/purchase/plans/${sourcePlan.id}/forward`, { itemIds: selectedIds, targetUserId });
+      const res = await api.post(`/purchase/plans/${sourcePlan.id}/forward`, { itemIds: selectedIds, targetEmployeeId });
       alert(res.message || '转发成功');
-      setForwardDialog({ open: false, loading: false, sourcePlan: null, items: [], selectedIds: [], targetUserId: '', purchasers: [] });
+      setForwardDialog({ open: false, loading: false, sourcePlan: null, items: [], selectedIds: [], targetEmployeeId: '', purchasers: [] });
       loadList(); loadChildren();
     } catch (err) {
       alert(err?.message || '转发失败');
@@ -413,9 +420,11 @@ export default function PurchasePlanList() {
   const hasAllocFilters = allocKeyword || allocStatus;
   const hasForwardFilters = forwardKeyword || forwardStatus;
 
-  // 子计划统计（按父计划聚合后，统计的是父计划数量）
-  const allocStats = { total: childrenData.allocated.length, draft: childrenData.allocated.filter(c => c.parentPlan?.status === 'DRAFT').length, approved: childrenData.allocated.filter(c => c.parentPlan?.status === 'APPROVED').length, confirmed: childrenData.allocated.filter(c => c.parentPlan?.status === 'CONFIRMED').length, pending: childrenData.allocated.filter(c => c.parentPlan?.status === 'PENDING').length };
-  const forwardStats = { total: childrenData.forwarded.length, draft: childrenData.forwarded.filter(c => c.parentPlan?.status === 'DRAFT').length, approved: childrenData.forwarded.filter(c => c.parentPlan?.status === 'APPROVED').length, confirmed: childrenData.forwarded.filter(c => c.parentPlan?.status === 'CONFIRMED').length, pending: childrenData.forwarded.filter(c => c.parentPlan?.status === 'PENDING').length };
+  // 子计划统计（按子计划条数计算）
+  const countChildren = (arr) => arr?.reduce((sum, g) => sum + (g.children?.length || 0), 0) || 0;
+  const allocStats = { total: countChildren(childrenData.allocated), draft: countChildren(childrenData.allocated.filter(c => c.parentPlan?.status === 'DRAFT')), approved: countChildren(childrenData.allocated.filter(c => c.parentPlan?.status === 'APPROVED')), confirmed: countChildren(childrenData.allocated.filter(c => c.parentPlan?.status === 'CONFIRMED')), pending: countChildren(childrenData.allocated.filter(c => c.parentPlan?.status === 'PENDING')) };
+  const forwardStats = { total: countChildren(childrenData.forwarded), draft: countChildren(childrenData.forwarded.filter(c => c.parentPlan?.status === 'DRAFT')), approved: countChildren(childrenData.forwarded.filter(c => c.parentPlan?.status === 'APPROVED')), confirmed: countChildren(childrenData.forwarded.filter(c => c.parentPlan?.status === 'CONFIRMED')), pending: countChildren(childrenData.forwarded.filter(c => c.parentPlan?.status === 'PENDING')) };
+  const cancelledCount = countChildren(childrenData.cancelled);
 
   return (
     <Box>
@@ -431,8 +440,9 @@ export default function PurchasePlanList() {
       {/* Tab 切换 */}
       <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)} sx={{ borderBottom: 1, borderColor: 'divider', mb: 1, minHeight: 40, '& .MuiTab-root': { minHeight: 36, py: 0.5 } }}>
         <Tab icon={<Description />} iconPosition="start" label="采购计划" />
-        <Tab icon={<CallSplit />} iconPosition="start" label={`已分配子计划（${childrenData.allocated.length}）`} />
-        <Tab icon={<SwapHoriz />} iconPosition="start" label={`已转发子计划（${childrenData.forwarded.length}）`} />
+        <Tab icon={<CallSplit />} iconPosition="start" label={`已分配子计划（${allocStats.total}）`} />
+        <Tab icon={<SwapHoriz />} iconPosition="start" label={`已转发子计划（${forwardStats.total}）`} />
+        <Tab icon={<CancelPresentation />} iconPosition="start" label={`已作废（${cancelledCount}）`} />
       </Tabs>
 
       {/* ========== Tab 0: 采购计划主列表 ========== */}
@@ -480,6 +490,17 @@ export default function PurchasePlanList() {
                   <Box>
                     <Typography variant="h6" sx={{ fontWeight: 700, color: 'success.main' }}>{stats.approved}</Typography>
                     <Typography variant="caption" color="text.secondary">已批准</Typography>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <Card sx={{ bgcolor: 'error.50', border: '1px solid', borderColor: 'error.100' }}>
+                <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: '10px !important' }}>
+                  <CancelPresentation color="error" sx={{ fontSize: 32 }} />
+                  <Box>
+                    <Typography variant="h6" sx={{ fontWeight: 700, color: 'error.main' }}>{stats.cancelled}</Typography>
+                    <Typography variant="caption" color="text.secondary">已作废</Typography>
                   </Box>
                 </CardContent>
               </Card>
@@ -553,7 +574,7 @@ export default function PurchasePlanList() {
                         <TableCell sx={{ whiteSpace: 'nowrap' }}>{item.priceDate?.slice(0, 10) || '-'}</TableCell>
                         <TableCell>{item.creator?.name || '-'}</TableCell>
                         <TableCell>{item.department?.name || '-'}</TableCell>
-                        <TableCell>{item.assignee?.employee?.name || item.assignee?.username || '-'}</TableCell>
+                        <TableCell>{item.assignee?.name || '-'}</TableCell>
                         <TableCell>
                           <Chip size="small" label={item._count?.items || 0} color="primary" variant="outlined" />
                           {item._count?.childPlans > 0 && <Chip size="small" label={`子${item._count.childPlans}`} color="success" sx={{ ml: 0.5, height: 18, fontSize: 12 }} />}
@@ -566,16 +587,22 @@ export default function PurchasePlanList() {
                             {item.status === 'REJECTED' && <Button size="small" variant="contained" color="warning" onClick={() => handleOpen(item)} sx={{ minWidth: 44, fontSize: '0.7rem', py: 0.25, borderRadius: '10px' }}>修改</Button>}
                             {item.status === 'PENDING' && <Button size="small" variant="contained" color="success" onClick={() => handleApprove(item.id)} sx={{ minWidth: 44, fontSize: '0.7rem', py: 0.25, borderRadius: '10px' }}>通过</Button>}
                             {item.status === 'PENDING' && <Button size="small" variant="contained" color="error" onClick={() => handleReject(item.id, item.planNo)} sx={{ minWidth: 44, fontSize: '0.7rem', py: 0.25, borderRadius: '10px' }}>驳回</Button>}
-                            {item.status === 'APPROVED' && item.assignee?.id === user?.id && (
+                            {item.status === 'APPROVED' && item.assignee?.id === user?.employee?.id && (
                               <Button size="small" variant="contained" color="info" onClick={() => handleOpen(item)} sx={{ minWidth: 44, fontSize: '0.7rem', py: 0.25, borderRadius: '10px' }}>详情</Button>
                             )}
-                            {item.status === 'APPROVED' && item.assignee?.id === user?.id && (
+                            {item.status === 'APPROVED' && item.assignee?.id === user?.employee?.id && (
                               <Button size="small" variant="contained" color="success" onClick={() => handleConfirm(item.id, item.planNo)} sx={{ minWidth: 44, fontSize: '0.7rem', py: 0.25, borderRadius: '10px' }}>确认</Button>
                             )}
                             {item.status === 'APPROVED' && !item.parentPlanId && item._count?.childPlans === 0 && (
                               <Button size="small" variant="contained" color="primary" onClick={() => handleAllocate(item.id)} sx={{ minWidth: 44, fontSize: '0.7rem', py: 0.25, borderRadius: '10px' }}>分配</Button>
                             )}
+                            {item.status === 'APPROVED' && !item.parentPlanId && item._count?.childPlans > 0 && (
+                              <Button size="small" variant="outlined" color="primary" startIcon={<RestartAlt />} onClick={() => handleAllocate(item.id)} sx={{ minWidth: 44, fontSize: '0.7rem', py: 0.25, borderRadius: '10px' }}>补分配</Button>
+                            )}
                             {item.status !== 'CONFIRMED' && <Button size="small" variant="contained" color="secondary" onClick={() => handleOpenForward(item)} sx={{ minWidth: 44, fontSize: '0.7rem', py: 0.25, borderRadius: '10px' }}>转发</Button>}
+                            {item.status !== 'DRAFT' && item.status !== 'CONFIRMED' && item.status !== 'CANCELLED' && (
+                              <Button size="small" variant="contained" color="error" onClick={() => handleCancel(item.id, item.planNo)} sx={{ minWidth: 44, fontSize: '0.7rem', py: 0.25, borderRadius: '10px' }}>作废</Button>
+                            )}
                             {item.status === 'DRAFT' && <Button size="small" variant="contained" color="error" onClick={() => handleDelete(item.id)} sx={{ minWidth: 44, fontSize: '0.7rem', py: 0.25, borderRadius: '10px' }}>删除</Button>}
                           </Stack>
                         </TableCell>
@@ -613,7 +640,7 @@ export default function PurchasePlanList() {
                                             <TableRow key={child.id} hover>
                                               <TableCell sx={{ fontFamily: 'monospace' }}>{child.planNo}</TableCell>
                                               <TableCell>{child.title}</TableCell>
-                                              <TableCell>{child.assignee?.employee?.name || child.assignee?.username || '-'}</TableCell>
+                                              <TableCell>{child.assignee?.name || '-'}</TableCell>
                                               <TableCell>{child._count?.items || 0}</TableCell>
                                               <TableCell><Chip size="small" label={STATUS_MAP[child.status]?.label || child.status} color={STATUS_MAP[child.status]?.color || 'default'} /></TableCell>
                                             </TableRow>
@@ -793,7 +820,7 @@ export default function PurchasePlanList() {
                     <TableCell><Chip size="small" label={STATUS_MAP[row.parentPlan.status]?.label || row.parentPlan.status} color={STATUS_MAP[row.parentPlan.status]?.color || 'default'} /></TableCell>
                     <TableCell sx={{ whiteSpace: 'nowrap' }}>{row.parentPlan.priceDate?.slice(0, 10) || '-'}</TableCell>
                     <TableCell align="right"><Chip size="small" label={row.children.length} color="primary" /></TableCell>
-                    <TableCell>{row.children.map(c => c.assignee?.employee?.name || c.assignee?.username || '-').join('、')}</TableCell>
+                    <TableCell>{row.children.map(c => c.assignee?.name || '-').join('、')}</TableCell>
                     <TableCell sx={{ whiteSpace: 'nowrap' }}>{row.parentPlan.createdAt ? new Date(row.parentPlan.createdAt).toLocaleString('zh-CN') : '-'}</TableCell>
                   </TableRow>
                 ))}
@@ -909,7 +936,7 @@ export default function PurchasePlanList() {
                     <TableCell><Chip size="small" label={STATUS_MAP[row.parentPlan.status]?.label || row.parentPlan.status} color={STATUS_MAP[row.parentPlan.status]?.color || 'default'} /></TableCell>
                     <TableCell sx={{ whiteSpace: 'nowrap' }}>{row.parentPlan.priceDate?.slice(0, 10) || '-'}</TableCell>
                     <TableCell align="right"><Chip size="small" label={row.children.length} color="primary" /></TableCell>
-                    <TableCell>{row.children.map(c => c.assignee?.employee?.name || c.assignee?.username || '-').join('、')}</TableCell>
+                    <TableCell>{row.children.map(c => c.assignee?.name || '-').join('、')}</TableCell>
                     <TableCell sx={{ whiteSpace: 'nowrap' }}>{row.parentPlan.createdAt ? new Date(row.parentPlan.createdAt).toLocaleString('zh-CN') : '-'}</TableCell>
                   </TableRow>
                 ))}
@@ -920,6 +947,49 @@ export default function PurchasePlanList() {
             </Table>
           </TableContainer>
         </>
+      )}
+
+      {/* ========== Tab 3: 已作废 ========== */}
+      {activeTab === 3 && (
+        <TableContainer component={Paper}>
+          <Table size="small">
+            <TableHead>
+              <TableRow sx={{ bgcolor: 'grey.50' }}>
+                <TableCell sx={{ fontWeight: 600 }}>父计划编号</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>父计划标题</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>子计划编号</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>子计划标题</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>采购员</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>明细数</TableCell>
+                <TableCell sx={{ fontWeight: 600 }} align="center">状态</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {childrenData.cancelled?.map((row) =>
+                row.children.map((child, idx) => (
+                  <TableRow key={child.id} sx={{ bgcolor: 'error.50' }}>
+                    {idx === 0 && (
+                      <>
+                        <TableCell rowSpan={row.children.length} sx={{ fontFamily: 'monospace' }}>{row.parentPlan.planNo}</TableCell>
+                        <TableCell rowSpan={row.children.length}>{row.parentPlan.title}</TableCell>
+                      </>
+                    )}
+                    <TableCell sx={{ fontFamily: 'monospace' }}>{child.planNo}</TableCell>
+                    <TableCell>{child.title}</TableCell>
+                    <TableCell>{child.assignee?.name || '-'}</TableCell>
+                    <TableCell>{child.itemCount}</TableCell>
+                    <TableCell align="center">
+                      <Chip size="small" label={STATUS_MAP[child.status]?.label || child.status} color={STATUS_MAP[child.status]?.color || 'default'} />
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+              {(!childrenData.cancelled || childrenData.cancelled.length === 0) && (
+                <TableRow><TableCell colSpan={7} align="center"><Typography color="text.secondary" sx={{ py: 3 }}>暂无已作废记录</Typography></TableCell></TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
       )}
 
       {/* 新增/编辑弹窗 / 填写采购详情弹窗 */}
@@ -1058,7 +1128,7 @@ export default function PurchasePlanList() {
                       </Select>
                     </TableCell>
                   </>}
-                  <TableCell sx={{ width: 180 }}><TextField size="small" type="date" InputLabelProps={{ shrink: true }} value={it.expectedDate || ''} onChange={(e) => updateItem(idx, 'expectedDate', e.target.value)} disabled={dialog.data?.status === 'APPROVED'} sx={{ width: 160 }} /></TableCell>
+                  <TableCell sx={{ width: 180 }}><TextField size="small" type="date" InputLabelProps={{ shrink: true }} value={it.expectedDate || ''} onChange={(e) => updateItem(idx, 'expectedDate', e.target.value)} sx={{ width: 160 }} /></TableCell>
                   <TableCell sx={{ width: 140 }}><TextField size="small" value={it.remark || ''} onChange={(e) => updateItem(idx, 'remark', e.target.value)} sx={{ width: 130 }} /></TableCell>
                   {dialog.data?.status !== 'APPROVED' && <TableCell sx={{ width: 50 }}><IconButton size="small" color="error" onClick={() => removeItem(idx)}><Delete fontSize="small" /></IconButton></TableCell>}
                 </TableRow>
@@ -1182,7 +1252,7 @@ export default function PurchasePlanList() {
                         <TableRow key={child.id} hover>
                           <TableCell sx={{ fontFamily: 'monospace' }}>{child.planNo}</TableCell>
                           <TableCell>{child.title}</TableCell>
-                          <TableCell>{child.assignee?.employee?.name || child.assignee?.username}</TableCell>
+                          <TableCell>{child.assignee?.name}</TableCell>
                           <TableCell>{child._count?.items || 0}</TableCell>
                         </TableRow>
                       ))}
@@ -1194,6 +1264,31 @@ export default function PurchasePlanList() {
                     以下 {allocateDialog.result.data.unassignedMaterials.length} 个物料未匹配到采购员：
                     {allocateDialog.result.data.unassignedMaterials.map((m) => ` ${m.code}(${m.name})`).join('、')}
                   </Alert>
+                )}
+                {allocateDialog.result.data?.failedEmployees?.length > 0 && (
+                  <Box sx={{ mt: 2 }}>
+                    <Typography variant="subtitle2" sx={{ mb: 1, color: 'error.main' }}>
+                      以下 {allocateDialog.result.data.failedEmployees.length} 个采购员分配失败：
+                    </Typography>
+                    <TableContainer component={Paper} variant="outlined">
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow sx={{ bgcolor: 'grey.100', '& .MuiTableCell-root': { fontWeight: 'bold' } }}>
+                            <TableCell>员工</TableCell><TableCell>工号</TableCell><TableCell>失败原因</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {allocateDialog.result.data.failedEmployees.map((f, idx) => (
+                            <TableRow key={idx} hover>
+                              <TableCell>{f.name}</TableCell>
+                              <TableCell sx={{ fontFamily: 'monospace' }}>{f.empNo || '-'}</TableCell>
+                              <TableCell sx={{ color: 'error.main', fontSize: '0.875rem' }}>{f.reason}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </Box>
                 )}
               </Box>
             ) : (
@@ -1207,15 +1302,15 @@ export default function PurchasePlanList() {
       </Dialog>
 
       {/* 转发弹窗 */}
-      <Dialog open={forwardDialog.open} onClose={() => setForwardDialog({ open: false, loading: false, sourcePlan: null, items: [], selectedIds: [], targetUserId: '', purchasers: [] })} maxWidth="lg" fullWidth>
+      <Dialog open={forwardDialog.open} onClose={() => setForwardDialog({ open: false, loading: false, sourcePlan: null, items: [], selectedIds: [], targetEmployeeId: '', purchasers: [] })} maxWidth="lg" fullWidth>
         <DialogTitle sx={{ fontWeight: 'bold' }}>转发采购计划 - {forwardDialog.sourcePlan?.planNo}</DialogTitle>
         <DialogContent>
           <Alert severity="info" sx={{ mb: 2 }}>选择需要转发的明细，并指定目标采购员。系统将生成新的采购计划，备注中会记录转发信息。</Alert>
           <Grid container spacing={2} sx={{ mb: 2 }}>
             <Grid item xs={6}>
-              <TextField select fullWidth size="small" label="目标采购员" value={forwardDialog.targetUserId} onChange={(e) => setForwardDialog({ ...forwardDialog, targetUserId: e.target.value })}>
+              <TextField select fullWidth size="small" label="目标采购员" value={forwardDialog.targetEmployeeId} onChange={(e) => setForwardDialog({ ...forwardDialog, targetEmployeeId: e.target.value })}>
                 <MenuItem value="">请选择</MenuItem>
-                {forwardDialog.purchasers.map((u) => <MenuItem key={u.id} value={u.id}>{u.employee?.name || u.username} ({u.role})</MenuItem>)}
+                {forwardDialog.purchasers.map((u) => <MenuItem key={u.id} value={u.id}>{u.name || '-'}{u.empNo ? ` (${u.empNo})` : ''}{u.department ? ` - ${u.department.name}` : ''}</MenuItem>)}
               </TextField>
             </Grid>
             <Grid item xs={6} sx={{ display: 'flex', alignItems: 'center' }}>
@@ -1249,8 +1344,8 @@ export default function PurchasePlanList() {
           </TableContainer>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setForwardDialog({ open: false, loading: false, sourcePlan: null, items: [], selectedIds: [], targetUserId: '', purchasers: [] })}>取消</Button>
-          <Button variant="contained" startIcon={forwardDialog.loading ? <CircularProgress size={16} /> : <Forward />} onClick={handleForward} disabled={forwardDialog.loading || !forwardDialog.selectedIds.length || !forwardDialog.targetUserId}>
+          <Button onClick={() => setForwardDialog({ open: false, loading: false, sourcePlan: null, items: [], selectedIds: [], targetEmployeeId: '', purchasers: [] })}>取消</Button>
+          <Button variant="contained" startIcon={forwardDialog.loading ? <CircularProgress size={16} /> : <Forward />} onClick={handleForward} disabled={forwardDialog.loading || !forwardDialog.selectedIds.length || !forwardDialog.targetEmployeeId}>
             {forwardDialog.loading ? '转发中...' : '确认转发'}
           </Button>
         </DialogActions>

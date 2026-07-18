@@ -189,6 +189,7 @@ router.post('/sso-login', async (req, res, next) => {
     const token = jwt.sign(
       {
         userId: user.id,
+        employeeId: user.employeeId || user.employee?.id || null,
         role: user.role,
         username: user.username,
         permissions: scmPermissions,
@@ -218,7 +219,7 @@ router.post('/sso-login', async (req, res, next) => {
                 email: user.employee.email,
                 departmentId: user.employee.departmentId,
                 department: user.employee.department
-                  ? { id: user.employee.department.id, name: user.employee.department.name }
+                  ? { id: user.employee.department.id, name: user.employee.department.name, parentId: user.employee.department.parentId }
                   : null,
                 position: user.employee.position,
               }
@@ -250,7 +251,7 @@ router.post('/mobile-login', async (req, res, next) => {
     }
 
     // ====== 步骤1：调用 HRMS 统一认证验证密码 ======
-    const hrmsUrl = process.env.HRMS_API_URL || 'http://localhost:4002';
+    const hrmsUrl = process.env.HRMS_API_URL || 'http://localhost:14002';
     let hrmsResult;
     try {
       const hrmsResp = await fetch(`${hrmsUrl}/api/auth/login`, {
@@ -405,6 +406,7 @@ router.post('/mobile-login', async (req, res, next) => {
     const token = jwt.sign(
       {
         userId: user.id,
+        employeeId: user.employeeId || user.employee?.id || null,
         role: user.role,
         username: user.username,
         permissions: scmModules,
@@ -434,7 +436,7 @@ router.post('/mobile-login', async (req, res, next) => {
                 email: user.employee.email,
                 departmentId: user.employee.departmentId,
                 department: user.employee.department
-                  ? { id: user.employee.department.id, name: user.employee.department.name }
+                  ? { id: user.employee.department.id, name: user.employee.department.name, parentId: user.employee.department.parentId }
                   : null,
                 position: user.employee.position,
               }

@@ -790,7 +790,7 @@ router.get('/orders/:id', async (req, res, next) => {
 // 创建
 router.post('/orders', authorize(ROLES.SALES_MANAGER, ROLES.SALES_REP, ROLES.SUPER_ADMIN), async (req, res, next) => {
   try {
-    const { customerId, warehouseId, addressId, salesRepId, salesPlanId, orderDate, expectedDate, priceType, items, notes } = req.body;
+    const { customerId, warehouseId, addressId, destinationAddress, salesRepId, salesPlanId, orderDate, expectedDate, priceType, items, notes } = req.body;
 
     // 计算金额
     let totalAmount = 0, taxAmount = 0;
@@ -841,7 +841,7 @@ router.post('/orders', authorize(ROLES.SALES_MANAGER, ROLES.SALES_REP, ROLES.SUP
         customerId,
         warehouseId,
         addressId: addressId || null,
-        salesRepId: salesRepId || null,
+        destinationAddress: destinationAddress || null,
         salesPlanId: salesPlanId || null,
         orderDate: orderDate ? new Date(orderDate) : new Date(),
         expectedDate: expectedDate ? new Date(expectedDate) : null,
@@ -894,7 +894,7 @@ router.put('/orders/:id', async (req, res, next) => {
     if (existing.status !== 'PENDING_APPROVAL' && existing.status !== 'REJECTED') return res.status(400).json({ success: false, message: '非待审核或已拒绝状态不可编辑' });
     if (existing.status === 'IN_APPROVAL') return res.status(400).json({ success: false, message: '审批流进行中不可编辑' });
 
-    const { customerId, warehouseId, addressId, salesRepId, salesPlanId, orderDate, expectedDate, priceType, items, notes } = req.body;
+    const { customerId, warehouseId, addressId, destinationAddress, salesRepId, salesPlanId, orderDate, expectedDate, priceType, items, notes } = req.body;
 
     // 如果已锁库存，先释放旧锁（转换为基准单位释放）
     if (existing.stockLocked) {
@@ -967,7 +967,7 @@ router.put('/orders/:id', async (req, res, next) => {
     const order = await prisma.salesOrder.update({
       where: { id: req.params.id },
       data: {
-        customerId, warehouseId, addressId: addressId || null, salesRepId: salesRepId || null,
+        customerId, warehouseId, addressId: addressId || null, destinationAddress: destinationAddress || null, salesRepId: salesRepId || null,
         salesPlanId: salesPlanId || null,
         orderDate: orderDate ? new Date(orderDate) : undefined,
         expectedDate: expectedDate ? new Date(expectedDate) : null,
@@ -1264,7 +1264,7 @@ router.post('/orders/:id/submit-approval', authorize(ROLES.SALES_MANAGER, ROLES.
       submitterEmail,
     };
 
-    const WORKFLOW_ENGINE_URL = process.env.WORKFLOW_ENGINE_URL || 'http://localhost:4011';
+    const WORKFLOW_ENGINE_URL = process.env.WORKFLOW_ENGINE_URL || 'http://localhost:14011';
 
     let wfResult;
     try {

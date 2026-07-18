@@ -43,7 +43,12 @@ export function requireAdmin(req, res, next) {
     return res.status(401).json({ success: false, message: '未认证' });
   }
   const adminRoles = ['SUPER_ADMIN', 'ADMIN', 'HR_ADMIN'];
-  if (!adminRoles.includes(req.user.role)) {
+  // 兼容两种判断：1) 顶层 role 字段 2) systemRoles 中有 SUPER_ADMIN（推荐）
+  const hasAdminRole = adminRoles.includes(req.user.role);
+  const hasSuperInSystems = req.user.systemRoles
+    ? Object.values(req.user.systemRoles).includes('SUPER_ADMIN')
+    : false;
+  if (!hasAdminRole && !hasSuperInSystems) {
     return res.status(403).json({ success: false, message: '需要管理员权限' });
   }
   next();

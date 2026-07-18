@@ -3,6 +3,54 @@ import mysql from 'mysql2/promise';
 import { authenticate } from '../middleware/auth.js';
 import prisma from '../prisma.js';
 import { getKingdeeAdapter } from '../services/kingdee-adapter.js';
+
+// 创建一个原生 MySQL 连接用于 JSON 字段搜索
+const mysqlConn = mysql.createPool({
+  host: process.env.MYSQL_HOST || 'localhost',
+  port: Number(process.env.MYSQL_PORT) || 3306,
+  user: process.env.MYSQL_USER || 'root',
+  password: process.env.MYSQL_PASSWORD || 'Scm@2025!',
+  database: (process.env.DATABASE_URL || '').match(/\/([^/?]+)(?:\?|$)/)?.[1] || 'mdm_db',
+  timezone: '+00:00',
+  connectionLimit: 5,
+});
+
+/**
+ * 通过原生 SQL 搜索金蝶主数据（按 entityType + 关键字 + 组织过滤）
+ * 解决 Prisma take 限制漏掉高编码记录的问题
+ * @param {string} entityType - material | customer | supplier
+ * @param {string} keyword - 搜索关键字（模糊匹配 name/code）
+ * @param {string} orgCode - 组织编号，逗号分隔支持多组织（如 "20001,30001"）
+ * @param {number} limit - 最大返回数
+ * @returns {Promise<Array>}
+ */
+async function searchBySql(entityType, keyword, orgCode, limit = 200) {
+  const params = [entityType];
+  let where = 'entity_type = ?';
+  if (keyword) {
+    where += ' AND (name LIKE ? OR code LIKE ?)';
+    params.push(`%${keyword}%`, `%${keyword}%`);
+  }
+  if (orgCode) {
+    // useOrgNumber 可能是逗号分隔的多组织，需用 FIND_IN_SET 或 LIKE IN
+    const orgCodes = orgCode.split(',').map(s => s.trim()).filter(Boolean);
+    if (orgCodes.length === 1) {
+      // 单组织：精确匹配（考虑逗号分隔多组织场景，如 "30001,10001"）
+      where += " AND (JSON_UNQUOTE(JSON_EXTRACT(extra, '$.useOrgNumber')) = ? OR JSON_UNQUOTE(JSON_EXTRACT(extra, '$.useOrgNumber')) LIKE ? OR JSON_UNQUOTE(JSON_EXTRACT(extra, '$.useOrgNumber')) LIKE ? OR JSON_UNQUOTE(JSON_EXTRACT(extra, '$.useOrgNumber')) LIKE ?)";
+      params.push(orgCodes[0], `${orgCodes[0]},%`, `%,${orgCodes[0]},%`, `%,${orgCodes[0]}`);
+    } else {
+      const placeholders = orgCodes.map(() => '?').join(',');
+      where += ` AND (JSON_UNQUOTE(JSON_EXTRACT(extra, '$.useOrgNumber')) IN (${placeholders}) OR JSON_UNQUOTE(JSON_EXTRACT(extra, '$.useOrgNumber')) LIKE ?)`;
+      params.push(...orgCodes, '%' + orgCodes[0] + '%'); // 简化处理多组织
+    }
+  }
+  const sql = `SELECT code, name, extra FROM kingdee_master_data WHERE ${where} ORDER BY code ASC LIMIT ${parseInt(limit) || 200}`;
+  const [rows] = await mysqlConn.query(sql, params);
+  return rows.map(r => {
+    const extra = r.extra ? (typeof r.extra === 'string' ? JSON.parse(r.extra) : r.extra) : {};
+    return { code: r.code, name: r.name, extra };
+  });
+}
 import {
   pullCustomersFromKingdee,
   pullSuppliersFromKingdee,
@@ -462,8 +510,10 @@ router.get('/data', authenticate, async (req, res) => {
     }
 
     // 直接用 mysql2 做带 JSON 过滤的查询
+    // 从 DATABASE_URL 解析库名，避免硬编码
+    const mdmDb = (process.env.DATABASE_URL || '').match(/\/([^/?]+)(?:\?|$)/)?.[1] || 'mdm_db';
     const conn = await mysql.createConnection({
-      host: 'localhost', port: 3306, user: 'root', password: 'Scm@2025!', database: 'mdm_db',
+      host: 'localhost', port: 3306, user: 'root', password: 'Scm@2025!', database: mdmDb,
       timezone: '+00:00',
     });
     const [countRows] = await conn.query(countSql, countParams);
@@ -502,40 +552,28 @@ router.get('/data', authenticate, async (req, res) => {
 /**
  * GET /api/kingdee/search-materials — 金蝶物料快速搜索（供 SCM 产品名称下拉）
  * Query: keyword (编码/名称), limit (默认50)
- * 返回：扁平列表 { code, name, spec, baseUnit, baseUnitName, purchaseUnit, purchaseUnitName, salesUnit, salesUnitName, materialGroup, materialGroupName }
+ * 返回：扁平列表 { code, name, spec, baseUnit, baseUnitName, purchaseUnit, purchaseUnitName, salesUnit, salesUnitName, storeUnit, storeUnitName, materialGroup, materialGroupName }
  */
 router.get('/search-materials', async (req, res) => {
   try {
-    const { keyword = '', limit = 50 } = req.query;
-    const where = { entityType: 'material' };
-    if (keyword) {
-      where.OR = [
-        { name: { contains: keyword } },
-        { code: { contains: keyword } },
-      ];
-    }
-    const records = await prisma.kingdeeMasterData.findMany({
-      where,
-      take: Math.min(parseInt(limit), 100),
-      orderBy: { code: 'asc' },
-    });
-    const items = records.map((r) => {
-      const extra = r.extra ? JSON.parse(r.extra) : {};
-      return {
-        code: r.code,
-        name: r.name,
-        spec: extra.spec || '',
-        baseUnit: extra.baseUnit || '',
-        baseUnitName: extra.baseUnitName || '',
-        purchaseUnit: extra.purchaseUnit || '',
-        purchaseUnitName: extra.purchaseUnitName || '',
-        salesUnit: extra.salesUnit || '',
-        salesUnitName: extra.salesUnitName || '',
-        materialGroup: extra.materialGroup || '',
-        materialGroupName: extra.materialGroupName || '',
-        grades: extra.grades || [],
-      };
-    });
+    const { keyword = '', limit = 50, orgCode = '' } = req.query;
+    const rows = await searchBySql('material', keyword, orgCode, Math.min(parseInt(limit) || 200, 50000));
+    const items = rows.map(({ code, name, extra }) => ({
+      code,
+      name,
+      spec: extra.spec || '',
+      baseUnit: extra.baseUnit || '',
+      baseUnitName: extra.baseUnitName || '',
+      purchaseUnit: extra.purchaseUnit || '',
+      purchaseUnitName: extra.purchaseUnitName || '',
+      salesUnit: extra.salesUnit || '',
+      salesUnitName: extra.salesUnitName || '',
+      storeUnit: extra.storeUnit || '',
+      storeUnitName: extra.storeUnitName || '',
+      materialGroup: extra.materialGroup || '',
+      materialGroupName: extra.materialGroupName || '',
+      grades: extra.grades || [],
+    }));
     res.json({ success: true, data: items });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -549,28 +587,14 @@ router.get('/search-materials', async (req, res) => {
  */
 router.get('/search-customers', async (req, res) => {
   try {
-    const { keyword = '', limit = 50 } = req.query;
-    const where = { entityType: 'customer' };
-    if (keyword) {
-      where.OR = [
-        { name: { contains: keyword } },
-        { code: { contains: keyword } },
-      ];
-    }
-    const records = await prisma.kingdeeMasterData.findMany({
-      where,
-      take: Math.min(parseInt(limit), 100),
-      orderBy: { code: 'asc' },
-    });
-    const items = records.map((r) => {
-      const extra = r.extra ? JSON.parse(r.extra) : {};
-      return {
-        code: r.code,
-        name: r.name,
-        shortName: extra.shortName || '',
-        currency: extra.currency || null,
-      };
-    });
+    const { keyword = '', limit = 50, orgCode = '' } = req.query;
+    const rows = await searchBySql('customer', keyword, orgCode, Math.min(parseInt(limit) || 200, 500));
+    const items = rows.map(({ code, name, extra }) => ({
+      code,
+      name,
+      shortName: extra.shortName || '',
+      currency: extra.currency || null,
+    }));
     res.json({ success: true, data: items });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -584,23 +608,9 @@ router.get('/search-customers', async (req, res) => {
  */
 router.get('/search-suppliers', async (req, res) => {
   try {
-    const { keyword = '', limit = 50 } = req.query;
-    const where = { entityType: 'supplier' };
-    if (keyword) {
-      where.OR = [
-        { name: { contains: keyword } },
-        { code: { contains: keyword } },
-      ];
-    }
-    const records = await prisma.kingdeeMasterData.findMany({
-      where,
-      take: Math.min(parseInt(limit), 100),
-      orderBy: { code: 'asc' },
-    });
-    const items = records.map((r) => ({
-      code: r.code,
-      name: r.name,
-    }));
+    const { keyword = '', limit = 50, orgCode = '' } = req.query;
+    const rows = await searchBySql('supplier', keyword, orgCode, Math.min(parseInt(limit) || 200, 500));
+    const items = rows.map(({ code, name }) => ({ code, name }));
     res.json({ success: true, data: items });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -614,29 +624,15 @@ router.get('/search-suppliers', async (req, res) => {
  */
 router.get('/search-warehouses', async (req, res) => {
   try {
-    const { keyword = '', limit = 50 } = req.query;
-    const where = { entityType: 'warehouse' };
-    if (keyword) {
-      where.OR = [
-        { name: { contains: keyword } },
-        { code: { contains: keyword } },
-      ];
-    }
-    const records = await prisma.kingdeeMasterData.findMany({
-      where,
-      take: Math.min(parseInt(limit), 100),
-      orderBy: { code: 'asc' },
-    });
-    const items = records.map((r) => {
-      const extra = r.extra ? JSON.parse(r.extra) : {};
-      return {
-        code: r.code,
-        name: r.name,
-        address: extra.address || '',
-        groupName: extra.groupName || '',
-        useOrgName: extra.useOrgName || '',
-      };
-    });
+    const { keyword = '', limit = 50, orgCode = '' } = req.query;
+    const records = await searchBySql('warehouse', keyword || '', orgCode, limit);
+    const items = records.map((r) => ({
+      code: r.code,
+      name: r.name,
+      address: r.extra.address || '',
+      groupName: r.extra.groupName || '',
+      useOrgName: r.extra.useOrgName || '',
+    }));
     res.json({ success: true, data: items });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -723,8 +719,9 @@ router.get('/organizations', authenticate, async (req, res) => {
     const { entityType } = req.query;
     const where = entityType ? `WHERE entity_type = '${entityType.replace(/'/g, "''")}'` : '';
 
+    const mdmDb = (process.env.DATABASE_URL || '').match(/\/([^/?]+)(?:\?|$)/)?.[1] || 'mdm_db';
     const conn = await mysql.createConnection({
-      host: 'localhost', port: 3306, user: 'root', password: 'Scm@2025!', database: 'mdm_db',
+      host: 'localhost', port: 3306, user: 'root', password: 'Scm@2025!', database: mdmDb,
       timezone: '+00:00',
     });
     const sql = `SELECT DISTINCT JSON_UNQUOTE(JSON_EXTRACT(extra, '$.useOrgName')) as orgName FROM kingdee_master_data ${where} ORDER BY orgName`;
